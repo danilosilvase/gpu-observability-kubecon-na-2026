@@ -1,0 +1,17 @@
+# Curated counter set. Keeping this SMALL is the first cardinality defence:
+# every counter x every GPU x every pod-label = series. Ship only what the
+# dashboard joins on.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dcgm-exporter-counters
+  namespace: observability
+data:
+  counters.csv: |
+    DCGM_FI_DEV_FB_USED,        gauge, Framebuffer memory used (MiB) - the memory-pressure signal
+    DCGM_FI_DEV_FB_FREE,        gauge, Framebuffer memory free (MiB)
+    DCGM_FI_PROF_SM_ACTIVE,     gauge, Ratio of SMs active - real utilisation, not nvidia-smi %%
+    DCGM_FI_PROF_DRAM_ACTIVE,   gauge, Ratio of cycles the memory interface is active
+    DCGM_FI_DEV_POWER_USAGE,    gauge, Power draw (W) - compare vs TDP to spot idle GPUs
+    DCGM_FI_DEV_GPU_TEMP,       gauge, GPU temperature (C)
+    DCGM_FI_DEV_GPU_UTIL,       gauge, Coarse GPU utilisation %% (kept for contrast in the talk)

@@ -1,0 +1,45 @@
+apiVersion: v1
+kind: ConfigMap
+metadata: { name: dcgm-exporter-counters, namespace: observability }
+data:
+  counters.csv: |
+    DCGM_FI_DEV_FB_USED,      gauge, Framebuffer memory used MiB
+    DCGM_FI_DEV_FB_FREE,      gauge, Framebuffer memory free MiB
+    DCGM_FI_PROF_SM_ACTIVE,   gauge, Ratio of SMs active
+    DCGM_FI_PROF_DRAM_ACTIVE, gauge, Ratio of cycles memory interface active
+    DCGM_FI_DEV_POWER_USAGE,  gauge, Power draw W
+    DCGM_FI_DEV_GPU_TEMP,     gauge, GPU temperature C
+    DCGM_FI_DEV_GPU_UTIL,     gauge, Coarse GPU utilisation pct
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata: { name: dcgm-exporter, namespace: observability, labels: { app: dcgm-exporter } }
+spec:
+  selector: { matchLabels: { app: dcgm-exporter } }
+  template:
+    metadata: { labels: { app: dcgm-exporter } }
+    spec:
+      nodeSelector: { workload-type: gpu-inference }
+      tolerations: [ { key: nvidia.com/gpu, operator: Exists, effect: NoSchedule } ]
+      containers:
+        - name: dcgm-exporter
+          image: nvcr.io/nvidia/k8s/dcgm-exporter:3.3.9-3.6.1-ubuntu22.04
+          args: ["-f","/etc/dcgm-exporter/counters.csv","--kubernetes=true","--kubernetes-gpu-id-type=uid"]
+          env:
+            - { name: DCGM_EXPORTER_KUBERNETES_ENABLE_POD_LABELS, value: "false" }
+            - { name: DCGM_EXPORTER_LISTEN, value: ":9400" }
+          ports: [ { name: metrics, containerPort: 9400 } ]
+          securityContext: { capabilities: { add: ["SYS_ADMIN"] } }
+          volumeMounts:
+            - { name: counters, mountPath: /etc/dcgm-exporter }
+            - { name: pod-resources, mountPath: /var/lib/kubelet/pod-resources, readOnly: true }
+      volumes:
+        - { name: counters, configMap: { name: dcgm-exporter-counters } }
+        - { name: pod-resources, hostPath: { path: /var/lib/kubelet/pod-resources } }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: dcgm-exporter, namespace: observability, labels: { app: dcgm-exporter } }
+spec:
+  selector: { app: dcgm-exporter }
+  ports: [ { name: metrics, port: 9400, targetPort: 9400 } ]

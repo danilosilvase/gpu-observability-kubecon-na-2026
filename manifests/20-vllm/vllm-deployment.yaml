@@ -1,0 +1,64 @@
+# Two vLLM replicas serving a tiny model. We deliberately set DIFFERENT
+# --gpu-memory-utilization so the dashboard shows one pod "memory-constrained"
+# and one "over-provisioned" — the money-shot contrast for the talk.
+#
+# Each pod:
+#   - exposes vLLM's Prometheus /metrics on :8000
+#   - emits OTLP traces to the OTel Collector (native --otlp-traces-endpoint)
+#   - writes structured JSON serving logs to stdout (Fluent Bit picks them up)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm-opt125m
+  namespace: inference
+  labels: { app: vllm, model: opt-125m }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: vllm, model: opt-125m }
+  template:
+    metadata:
+      labels: { app: vllm, model: opt-125m }
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      nodeSelector: { workload-type: gpu-inference }
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: vllm
+          image: vllm/vllm-openai:v0.9.0
+          args:
+            - "--model=facebook/opt-125m"
+            - "--gpu-memory-utilization=0.90"   # override per-replica via patch to show contrast
+            - "--otlp-traces-endpoint=grpc://otel-collector.observability:4317"
+            - "--disable-log-requests=false"
+          env:
+            - name: OTEL_SERVICE_NAME
+              value: "vllm-opt125m"
+            - name: OTEL_EXPORTER_OTLP_TRACES_INSECURE
+              value: "true"
+            # surface pod identity into the process for log enrichment
+            - name: POD_NAME
+              valueFrom: { fieldRef: { fieldPath: metadata.name } }
+            - name: POD_NAMESPACE
+              valueFrom: { fieldRef: { fieldPath: metadata.namespace } }
+          ports:
+            - { name: http, containerPort: 8000 }
+          resources:
+            limits: { nvidia.com/gpu: "1" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vllm-opt125m
+  namespace: inference
+  labels: { app: vllm }
+spec:
+  selector: { app: vllm, model: opt-125m }
+  ports:
+    - { name: http, port: 8000, targetPort: 8000 }

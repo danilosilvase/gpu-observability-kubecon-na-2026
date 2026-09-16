@@ -1,0 +1,94 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fluent-bit-config
+  namespace: observability
+data:
+  fluent-bit.conf: |
+    [SERVICE]
+        Flush        1
+        Log_Level    info
+        Parsers_File parsers.conf
+
+    # 1) tail vLLM container logs
+    [INPUT]
+        Name              tail
+        Tag               kube.<namespace>.<pod>
+        Tag_Regex         /var/log/containers/(?<pod>[^_]+)_(?<namespace>[^_]+)_.+\.log$
+        Path              /var/log/containers/vllm-*_inference_*.log
+        Parser            cri
+        Mem_Buf_Limit     10MB
+        Skip_Long_Lines   On
+
+    # 2) attach k8s pod metadata (this is the JOIN KEY)
+    [FILTER]
+        Name                kubernetes
+        Match               kube.*
+        Kube_Tag_Prefix     kube.
+        Merge_Log           On
+        Keep_Log            On
+        Labels              Off
+        Annotations         Off
+
+    # 3) Lua: extract token throughput + KV cache from the vLLM log line
+    [FILTER]
+        Name    lua
+        Match   kube.*
+        script  extract_tokens.lua
+        call    extract_vllm_metrics
+
+    # 4) drop everything that ISN'T a parsed vLLM engine-stats line
+    #    (keeps volume + cardinality down)
+    [FILTER]
+        Name    grep
+        Match   kube.*
+        Regex   vllm_parsed true
+
+    [OUTPUT]
+        Name   stdout
+        Match  kube.*
+        Format json_lines
+    # In the real deploy, swap stdout for OpenSearch/Loki/CloudWatch:
+    # [OUTPUT]
+    #     Name  opensearch
+    #     Match kube.*
+    #     Host  <domain> ...
+
+  parsers.conf: |
+    [PARSER]
+        Name        cri
+        Format      regex
+        Regex       ^(?<time>[^ ]+) (?<stream>stdout|stderr) (?<logtag>[^ ]*) (?<log>.*)$
+        Time_Key    time
+        Time_Format %Y-%m-%dT%H:%M:%S.%L%z
+
+  extract_tokens.lua: |
+    -- Parse vLLM engine stats lines such as:
+    -- "Avg prompt throughput: 0.0 tokens/s, Avg generation throughput: 123.4 tokens/s,
+    --  Running: 4 reqs, Waiting: 0 reqs, GPU KV cache usage: 12.3%, Prefix cache hit rate: 0.0%"
+    -- Emits structured numeric fields joined by pod identity so a log backend
+    -- can chart tokens/sec per pod alongside DCGM memory + OTel traces.
+    function extract_vllm_metrics(tag, ts, record)
+        local line = record["log"] or record["message"] or ""
+        local gen = string.match(line, "generation throughput:%s*([%d%.]+)%s*tokens/s")
+        if gen == nil then
+            -- not an engine-stats line: mark so grep can drop it
+            record["vllm_parsed"] = "false"
+            return 1, ts, record
+        end
+        record["gen_tokens_per_s"]    = tonumber(gen)
+        local prompt = string.match(line, "prompt throughput:%s*([%d%.]+)%s*tokens/s")
+        record["prompt_tokens_per_s"] = tonumber(prompt) or 0.0
+        local running = string.match(line, "Running:%s*(%d+)%s*reqs")
+        record["running_reqs"]        = tonumber(running) or 0
+        local waiting = string.match(line, "Waiting:%s*(%d+)%s*reqs")
+        record["waiting_reqs"]        = tonumber(waiting) or 0
+        local kv = string.match(line, "KV cache usage:%s*([%d%.]+)%%")
+        record["kv_cache_usage_pct"]  = tonumber(kv) or 0.0
+        record["vllm_parsed"]         = "true"
+        -- promote pod identity to top level for easy joins
+        local kube = record["kubernetes"] or {}
+        record["pod_name"]  = kube["pod_name"]
+        record["namespace"] = kube["namespace_name"]
+        return 2, ts, record   -- 2 = record modified
+    end

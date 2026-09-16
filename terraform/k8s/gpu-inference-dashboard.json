@@ -1,0 +1,81 @@
+{
+  "title": "GPU-Aware Inference Observability (pod-joined)",
+  "uid": "gpu-inference-obs",
+  "schemaVersion": 39,
+  "tags": ["gpu","inference","vllm","dcgm"],
+  "templating": {
+    "list": [
+      {
+        "name": "pod",
+        "type": "query",
+        "datasource": {"type": "prometheus", "uid": "prometheus"},
+        "query": "label_values(DCGM_FI_DEV_FB_USED, exported_pod)",
+        "includeAll": true,
+        "multi": true,
+        "refresh": 2
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "GPU framebuffer USED per pod (memory pressure)  [DCGM]",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "fieldConfig": {"defaults": {"unit": "decmbytes"}},
+      "targets": [
+        {"expr": "DCGM_FI_DEV_FB_USED{exported_pod=~\"$pod\"}",
+         "legendFormat": "{{exported_pod}}"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "SM active ratio per pod (real utilisation)  [DCGM]",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "fieldConfig": {"defaults": {"unit": "percentunit", "max": 1}},
+      "targets": [
+        {"expr": "DCGM_FI_PROF_SM_ACTIVE{exported_pod=~\"$pod\"}",
+         "legendFormat": "{{exported_pod}}"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Generation throughput tokens/s per pod  [vLLM /metrics]",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "fieldConfig": {"defaults": {"unit": "none"}},
+      "targets": [
+        {"expr": "rate(vllm:generation_tokens_total{pod=~\"$pod\"}[1m])",
+         "legendFormat": "{{pod}}"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "KV cache usage % + requests waiting per pod  [vLLM]",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "targets": [
+        {"expr": "vllm:gpu_cache_usage_perc{pod=~\"$pod\"}",
+         "legendFormat": "kv% {{pod}}"},
+        {"expr": "vllm:num_requests_waiting{pod=~\"$pod\"}",
+         "legendFormat": "waiting {{pod}}"}
+      ]
+    },
+    {
+      "type": "table",
+      "title": "Right-sizing view: GPU mem used vs KV cache per pod",
+      "description": "Low FB_USED + low KV% = over-provisioned. High FB_USED + high KV% + waiting>0 = memory-constrained.",
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 16},
+      "targets": [
+        {"expr": "max by (exported_pod) (DCGM_FI_DEV_FB_USED{exported_pod=~\"$pod\"})",
+         "format": "table", "instant": true, "refId": "A"},
+        {"expr": "max by (pod) (vllm:gpu_cache_usage_perc{pod=~\"$pod\"})",
+         "format": "table", "instant": true, "refId": "B"}
+      ]
+    },
+    {
+      "type": "text",
+      "title": "Traces",
+      "gridPos": {"h": 4, "w": 24, "x": 0, "y": 24},
+      "options": {"mode": "markdown",
+        "content": "Spans carry `k8s.pod.name` (OTel k8sattributes). Open Jaeger, filter service `vllm-opt125m`, and correlate a slow trace to the same pod's GPU memory + KV-cache panels above."}
+    }
+  ]
+}

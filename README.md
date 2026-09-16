@@ -3,7 +3,7 @@
 Demo and slides for the KubeCon North America 2026 Observability Day talk
 (Mon 9 Nov 2026, Room 1).
 
-The idea in one line: **pod identity is the join key.** Stamp the same
+The idea in one line: **the pod is the join key.** Stamp the same
 `pod / namespace` on GPU metrics (dcgm-exporter), serving logs (Fluent Bit + Lua)
 and traces (OpenTelemetry k8sattributes), and three disconnected signals become
 one Grafana query.

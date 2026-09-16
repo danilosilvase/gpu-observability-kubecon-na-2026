@@ -9,7 +9,7 @@ Deck: deck/kubecon-na-2026.html (open in browser, press F for fullscreen, N for 
 |-----|-------|------|
 | 0:00 | 1-2 | Cold open: the 2am page, "which pod?" |
 | 1:30 | 3-4 | Three silos, why GPU util lies |
-| 3:30 | 5 | The one idea: pod identity is the join key (pause here) |
+| 3:30 | 5 | The one idea: the pod is the join key (pause here) |
 | 4:30 | 6-7 | Architecture, same string in all three pipelines |
 | 6:30 | 8-9 | DCGM pod mapping, war story 1 cardinality |
 | 9:30 | 10 | Fluent Bit + Lua |

@@ -76,7 +76,45 @@ ul.pl.log li::before{background:var(--log)} ul.pl.trace li::before{background:va
 .step .num{font-family:var(--mono);font-size:22px;color:var(--gpu);letter-spacing:.18em;margin-bottom:14px}
 .step h4{font-size:32px}
 .step p{font-size:24px;color:var(--muted);margin:0}
-/* notes + ui */
+
+/* ===== animated bad-metric widgets ===== */
+@property --g{syntax:'<number>';inherits:false;initial-value:0}
+.tiles{display:flex;gap:36px;width:100%;margin-top:20px}
+.tile{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:22px;padding:32px 34px;display:flex;flex-direction:column;align-items:center;text-align:center}
+.tile .cap{font-family:var(--mono);font-size:20px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:22px}
+.gauge{--g:0;width:240px;height:240px;border-radius:50%;background:conic-gradient(var(--bad) calc(var(--g)*1%),var(--panel2) 0);display:flex;align-items:center;justify-content:center;position:relative}
+.gauge::after{content:'';position:absolute;inset:24px;border-radius:50%;background:var(--panel)}
+.gauge .g{position:relative;font-family:var(--mono);font-size:58px;font-weight:800;color:var(--bad);line-height:1}
+.gauge .u{position:relative;font-family:var(--mono);font-size:20px;color:var(--muted);margin-top:6px}
+.slide.active .gauge{animation:sweep 1.7s cubic-bezier(.2,.8,.2,1) forwards}
+@keyframes sweep{from{--g:0}to{--g:var(--to,96)}}
+.spark{width:100%;height:150px;margin-top:8px}
+.spark path{fill:none;stroke:var(--log);stroke-width:5;stroke-linejoin:round;stroke-linecap:round;stroke-dasharray:1400;stroke-dashoffset:1400}
+.slide.active .spark path{animation:draw 1.8s ease-out forwards}
+@keyframes draw{to{stroke-dashoffset:0}}
+.counter{font-family:var(--mono);font-size:96px;font-weight:800;line-height:1;color:var(--bad)}
+.counter small{font-size:34px;color:var(--muted);font-weight:500}
+.alertdot{display:inline-block;width:14px;height:14px;border-radius:50%;background:var(--bad);margin-right:10px;vertical-align:middle}
+.slide.active .alertdot{animation:blink 1s steps(2,end) infinite}
+@keyframes blink{50%{opacity:.25}}
+/* util-lies dual gauge */
+.duo{display:flex;gap:70px;width:100%;justify-content:center;margin-top:10px}
+.duo .one{display:flex;flex-direction:column;align-items:center}
+.duo .realbar{width:220px;height:26px;background:var(--panel2);border-radius:13px;overflow:hidden;margin-top:22px}
+.duo .realbar i{display:block;height:100%;width:0;border-radius:13px}
+.slide.active .duo .realbar i{animation:grow 1.7s ease-out .3s forwards}
+@keyframes grow{to{width:var(--rw)}}
+.duo .rl{font-family:var(--mono);font-size:20px;color:var(--muted);margin-top:12px}
+/* cardinality: exploding series line */
+.card-explode{width:100%;height:360px;margin-top:10px}
+.card-explode .flat{fill:none;stroke:var(--log);stroke-width:5}
+.card-explode .boom{fill:none;stroke:var(--bad);stroke-width:5;stroke-dasharray:2600;stroke-dashoffset:2600}
+.slide.active .card-explode .boom{animation:draw 1.9s ease-in forwards .3s}
+.card-explode .fillboom{fill:rgba(255,107,107,.12);opacity:0}
+.slide.active .card-explode .fillboom{animation:fadein .8s ease-out 1.6s forwards}
+@keyframes fadein{to{opacity:1}}
+
+  /* notes + ui */
 #hud{position:fixed;top:18px;right:26px;font-family:var(--mono);font-size:14px;color:#556;z-index:5}
 #hud b{color:var(--gpu)}
 #notes{position:fixed;left:0;right:0;bottom:0;max-height:34vh;overflow:auto;background:rgba(5,7,11,.96);border-top:2px solid var(--gpu);padding:22px 40px;font-size:18px;line-height:1.55;color:#d7dee9;display:none;z-index:6;font-family:var(--sans)}
@@ -98,47 +136,82 @@ ul.pl.log li::before{background:var(--log)} ul.pl.trace li::before{background:va
 </section>
 
 <!-- 02 HOOK: the page -->
-<section class="slide center" data-notes="Story: 2am, a page fires, latency SLO breached on an inference service. You open the GPU dashboard: a node is at 95 percent memory. You open the serving logs: throughput collapsed. You open traces: p99 up. Three tabs, three tools, and none of them can tell you WHICH POD. That is the black box.">
-  <div class="eyebrow bad">02:14 · PagerDuty</div>
-  <h1 style="font-size:120px">Latency SLO breached.<br/><span style="color:var(--muted);font-weight:500">Which pod?</span></h1>
-  <p style="font-size:38px;max-width:1400px;margin-top:20px">GPU dashboard says <b style="color:var(--gpu)">a node</b> is hot.<br/>Serving logs say <b style="color:var(--log)">throughput</b> collapsed.<br/>Traces say <b style="color:var(--trace)">p99</b> tripled.<br/><span style="color:var(--bad)">Nothing says which pod.</span></p>
+<section class="slide" data-notes="Let the widgets animate: the gauge sweeps to 96 percent GPU memory, the throughput line crashes, the p99 counter climbs to 540ms. All three fire at once at 2am. Then hit the line: every one of these is real, and not one of them tells me WHICH POD. That is the black box.">
+  <div class="eyebrow bad"><span class="alertdot"></span>02:14 · three dashboards, one incident</div>
+  <h2 style="margin-bottom:8px">The page fires. You open three tabs.</h2>
+  <div class="tiles">
+    <div class="tile">
+      <div class="cap" style="color:var(--gpu)">GPU memory</div>
+      <div class="gauge" style="--to:96"><div><div class="g" data-to="96">0</div><div class="u">% used</div></div></div>
+    </div>
+    <div class="tile">
+      <div class="cap" style="color:var(--log)">Throughput</div>
+      <svg class="spark" viewBox="0 0 400 150" preserveAspectRatio="none"><path style="stroke:var(--log)" d="M0,40 L60,44 L120,38 L180,50 L210,110 L240,132 L300,140 L400,144"/></svg>
+      <div class="rl" style="font-family:var(--mono);color:var(--bad);font-size:22px;margin-top:6px">tokens/s collapsed</div>
+    </div>
+    <div class="tile">
+      <div class="cap" style="color:var(--trace)">p99 latency</div>
+      <div class="counter" data-to="540">0<small> ms</small></div>
+      <div class="rl" style="font-family:var(--mono);color:var(--bad);font-size:22px;margin-top:18px">was 120 ms</div>
+    </div>
+  </div>
+  <p style="text-align:center;font-size:40px;margin-top:38px">All three are real. <b style="color:var(--bad)">None of them says which pod.</b></p>
 </section>
 
 <!-- 03 THE PROBLEM: three silos -->
-<section class="slide" data-notes="Name the three signals explicitly. Each one is good on its own. The problem is not lack of data, it is lack of a join. Land the phrase: three signals, zero connection.">
+<section class="slide" data-notes="Three signals, each good on its own, each in its own tool with its own labels. The problem is not missing data, it is a missing join. Point at the bottom of each card: the number is right there, but it is anonymous. Land: three signals, zero connection.">
   <div class="eyebrow">The problem</div>
   <h2>Three signals. Zero connection.</h2>
-  <div class="row" style="margin-top:30px;align-items:flex-start">
-    <div class="col card gpu"><span class="tag gpu">Signal A</span><h4 style="margin-top:20px">GPU hardware metrics</h4><p class="small" style="font-size:27px">DCGM knows the framebuffer is full. It does not know whose pod filled it.</p></div>
-    <div class="col card log"><span class="tag log">Signal B</span><h4 style="margin-top:20px">Serving logs</h4><p class="small" style="font-size:27px">vLLM prints tokens/s and KV-cache pressure to stdout, as free text nobody queries.</p></div>
-    <div class="col card trace"><span class="tag trace">Signal C</span><h4 style="margin-top:20px">Distributed traces</h4><p class="small" style="font-size:27px">One slow request. Which pod, which GPU, which memory event? Unknown.</p></div>
+  <div class="row" style="margin-top:26px;align-items:stretch">
+    <div class="col card gpu" style="display:flex;flex-direction:column">
+      <span class="tag gpu">Signal A · metrics</span>
+      <h4 style="margin-top:18px">GPU hardware (DCGM)</h4>
+      <p class="small" style="font-size:25px">Knows the framebuffer is full.</p>
+      <div style="margin-top:auto"><div class="counter" style="font-size:64px;color:var(--gpu)" data-to="96">0<small>% mem</small></div>
+      <div class="rl" style="font-family:var(--mono);font-size:20px;color:var(--bad);margin-top:8px">whose pod? unknown</div></div>
+    </div>
+    <div class="col card log" style="display:flex;flex-direction:column">
+      <span class="tag log">Signal B · logs</span>
+      <h4 style="margin-top:18px">Serving logs (vLLM)</h4>
+      <p class="small" style="font-size:25px">Prints tokens/s to stdout as free text.</p>
+      <div style="margin-top:auto"><div class="counter" style="font-size:64px;color:var(--log)" data-to="41">0<small> tok/s</small></div>
+      <div class="rl" style="font-family:var(--mono);font-size:20px;color:var(--bad);margin-top:8px">whose pod? unknown</div></div>
+    </div>
+    <div class="col card trace" style="display:flex;flex-direction:column">
+      <span class="tag trace">Signal C · traces</span>
+      <h4 style="margin-top:18px">Distributed traces</h4>
+      <p class="small" style="font-size:25px">One slow request, spans across hops.</p>
+      <div style="margin-top:auto"><div class="counter" style="font-size:64px;color:var(--trace)" data-to="540">0<small> ms</small></div>
+      <div class="rl" style="font-family:var(--mono);font-size:20px;color:var(--bad);margin-top:8px">which GPU? unknown</div></div>
+    </div>
   </div>
-  <div class="foot"><span>Metrics · Logs · Traces</span><span>each in its own tool, each with its own identity</span></div>
+  <div class="foot"><span>Metrics · Logs · Traces</span><span>each in its own tool, each with its own labels</span></div>
 </section>
 
 <!-- 04 WHY GPU UTIL LIES -->
-<section class="slide" data-notes="Quick prerequisite, 60 seconds. nvidia-smi utilization is a boolean sampled over time: was ANY kernel running. One tiny kernel per sample window reads as 100 percent. So we collect SM active, framebuffer used, DRAM active, power. This is why DCGM and not just the device plugin.">
+<section class="slide" data-notes="Both gauges read the same 100 percent utilization. Then the real-work bars grow underneath: pod A is genuinely busy, pod B is almost idle but holding the GPU. Same headline number, opposite truth. That is why nvidia-smi utilization lies, and why we collect SM active, framebuffer, DRAM, power from DCGM instead.">
   <div class="eyebrow">Prerequisite</div>
   <h2>GPU utilization % lies.</h2>
-  <div class="row">
-    <div class="col">
-      <p><span class="tag" style="font-size:26px">nvidia-smi</span> <b>100%</b> can mean:</p>
-      <ul class="pl"><li>every Streaming Multiprocessor busy</li><li>or one tiny kernel active once per sample window</li></ul>
-      <p style="margin-top:34px">So we collect the signals that <b style="color:var(--gpu)">cannot lie</b>.</p>
+  <p style="font-size:30px;margin-top:6px"><span class="tag" style="font-size:24px">nvidia-smi</span> says both pods are at <b>100%</b>. Watch what they are really doing:</p>
+  <div class="duo">
+    <div class="one">
+      <div class="gauge" style="--to:100;width:210px;height:210px"><div><div class="g" style="color:var(--gpu);font-size:50px" data-to="100">0</div><div class="u">% util</div></div></div>
+      <div class="realbar"><i style="--rw:88%;background:var(--ok)"></i></div>
+      <div class="rl">Pod A · SM active <b style="color:var(--ok)">88%</b> · real work</div>
     </div>
-    <div class="col card gpu">
-<pre><span class="k">DCGM_FI_DEV_FB_USED</span>       <span class="c"># memory pressure</span>
-<span class="k">DCGM_FI_PROF_SM_ACTIVE</span>    <span class="c"># real compute</span>
-<span class="k">DCGM_FI_PROF_DRAM_ACTIVE</span>  <span class="c"># memory bandwidth</span>
-<span class="k">DCGM_FI_DEV_POWER_USAGE</span>   <span class="c"># watts vs TDP</span></pre>
+    <div class="one">
+      <div class="gauge" style="--to:100;width:210px;height:210px"><div><div class="g" style="color:var(--gpu);font-size:50px" data-to="100">0</div><div class="u">% util</div></div></div>
+      <div class="realbar"><i style="--rw:7%;background:var(--bad)"></i></div>
+      <div class="rl">Pod B · SM active <b style="color:var(--bad)">7%</b> · almost idle</div>
     </div>
   </div>
+  <p style="text-align:center;font-size:30px;margin-top:30px">Same number, opposite truth. So we collect what <b style="color:var(--gpu)">cannot lie</b>: SM active, framebuffer, DRAM, power.</p>
 </section>
 
 <!-- 05 THE ONE IDEA -->
 <section class="slide center" data-notes="This is the whole talk in one sentence. Pause on it. Everything after this slide is just how we enforce it on each pipeline. If they remember one thing, this is it.">
   <div class="eyebrow">The one idea</div>
-  <h1 style="font-size:130px">Pod identity is<br/>the <span style="color:var(--gpu)">join key.</span></h1>
+  <h1 style="font-size:130px">The pod is<br/>the <span style="color:var(--gpu)">join key.</span></h1>
   <p style="font-size:38px;color:var(--muted);margin-top:26px">Stamp the same <span style="font-family:var(--mono);color:var(--ink)">pod / namespace</span> on every metric, log record and span.<br/>Then the three silos become one query.</p>
 </section>
 
@@ -218,36 +291,45 @@ ul.pl.log li::before{background:var(--log)} ul.pl.trace li::before{background:va
 </section>
 
 <!-- 09 WAR STORY 1 -->
-<section class="slide" data-notes="War story one. We flipped ENABLE_POD_LABELS to true because we wanted model name on the metric. Every arbitrary pod label became a Prometheus label, and every rollout created a new set. Series count exploded within a day of pod churn. Distinguish: pod identity is BOUNDED, pod labels are UNBOUNDED. Fix is off or allow-list.">
-  <div class="eyebrow bad">War story 1</div>
-  <h2>The cardinality explosion.</h2>
-  <div class="row">
+<section class="slide" data-notes="Make the distinction crisp. dcgm-exporter with --kubernetes=true always gives you pod, namespace, container: a small fixed set, safe to join on. There is an OPTIONAL feature, ENABLE_POD_LABELS, that also copies every Kubernetes label on the pod onto the metric: app version, git sha, replicaset hash. Those change on every deploy, so Prometheus mints a brand new time series each time. Watch the red line: series count explodes with pod churn. Fix: leave it off, or allow-list two safe labels. The rule: the thing you join on must be bounded.">
+  <div class="eyebrow bad"><span class="alertdot"></span>War story 1</div>
+  <h2>Join on the fixed part, never the churny part.</h2>
+  <div class="row" style="margin-top:20px">
     <div class="col">
-      <div class="growth">
-        <div class="b"><div class="bar2" style="height:18%">1×</div><div class="lab">--kubernetes=true<br/>pod, ns, container</div></div>
-        <div class="b"><div class="bar2" style="height:46%;border-color:var(--bad)">×labels</div><div class="lab">ENABLE_POD_LABELS<br/>every pod label</div></div>
-        <div class="b"><div class="bar2" style="height:100%;border-color:var(--bad);background:rgba(255,107,107,.18)">×labels×rollouts</div><div class="lab">+ pod churn<br/>replicaset hash, git sha</div></div>
+      <svg class="card-explode" viewBox="0 0 640 360" preserveAspectRatio="none">
+        <line x1="0" y1="320" x2="640" y2="320" stroke="#283041" stroke-width="2"/>
+        <path class="flat" d="M0,300 L640,296"/>
+        <path class="fillboom" d="M0,300 L360,290 L440,180 L520,70 L620,20 L640,16 L640,360 L0,360 Z"/>
+        <path class="boom" d="M0,300 L360,290 L440,180 L520,70 L620,20 L640,16"/>
+      </svg>
+      <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:20px;margin-top:6px">
+        <span style="color:var(--log)">pod, namespace, container</span>
+        <span style="color:var(--bad)">+ every pod label, every deploy</span>
       </div>
+      <p class="small" style="font-size:22px;margin-top:14px;text-align:center">Prometheus time-series count over a day of rollouts</p>
     </div>
     <div class="col">
-      <div class="card"><h4 style="color:var(--log)">Bounded</h4><p class="small" style="font-size:26px">pod, namespace, container. Safe join key.</p></div>
-      <div class="card bad" style="margin-top:22px"><h4 style="color:var(--bad)">Unbounded</h4><p class="small" style="font-size:26px">arbitrary pod labels: version, sha, replicaset hash. The trap.</p></div>
-<pre style="margin-top:22px;font-size:22px"><span class="c"># fix: off, or allow-list</span>
+      <div class="card log"><h4 style="color:var(--log)">Join on this (bounded)</h4>
+        <p class="small" style="font-size:25px">pod, namespace, container. A small fixed set. This is the join key.</p></div>
+      <div class="card bad" style="margin-top:20px"><h4 style="color:var(--bad)">Never join on this (unbounded)</h4>
+        <p class="small" style="font-size:25px">Arbitrary pod labels: <b>git-sha</b>, <b>version</b>, replicaset hash. New value every deploy, new series every time.</p></div>
+<pre style="margin-top:20px;font-size:22px"><span class="c"># keep the churn off the metric</span>
 ENABLE_POD_LABELS=<span class="s">"false"</span>
+<span class="c"># or allow-list only safe ones</span>
 POD_LABEL_ALLOWLIST_REGEX=<span class="s">"app|model"</span></pre>
     </div>
   </div>
 </section>
 
 <!-- 10 SIGNAL B -->
-<section class="slide" data-notes="Signal B. vLLM prints an engine stats line every 10 seconds. Prometheus has vllm metrics too, but the log line has things the metrics endpoint does not always expose at the same granularity, and many teams already ship logs. Fluent Bit tails, the kubernetes filter attaches metadata, one Lua function does the regex and PROMOTES pod identity to the top level of the record so it is queryable.">
+<section class="slide" data-notes="Signal B. vLLM prints an engine stats line every 10 seconds. Prometheus has vllm metrics too, but the log line has things the metrics endpoint does not always expose at the same granularity, and many teams already ship logs. Fluent Bit tails, the kubernetes filter attaches metadata, one Lua function does the regex and PROMOTES the pod name and namespace to the top level of the record so it is queryable.">
   <div class="eyebrow log">Signal B · Fluent Bit + Lua</div>
   <h2>Tokens/s, parsed out of stdout.</h2>
   <div class="row">
     <div class="col">
       <h4 style="color:var(--muted)">The raw vLLM line</h4>
 <pre style="font-size:21px;white-space:pre-wrap">INFO [metrics.py:486] Avg prompt throughput: 254.6 tokens/s, Avg <span class="hl">generation throughput: 462.7 tokens/s</span>, Running: 0 reqs, Waiting: 0 reqs, GPU <span class="hl">KV cache usage: 0.0%</span></pre>
-      <ul class="pl log" style="margin-top:30px"><li>tail → kubernetes filter → Lua → JSON</li><li>numbers become fields, pod identity promoted to top level</li></ul>
+      <ul class="pl log" style="margin-top:30px"><li>tail → kubernetes filter → Lua → JSON</li><li>numbers become fields, pod name and namespace promoted to top level</li></ul>
     </div>
     <div class="col card log">
 <pre style="font-size:21px"><span class="k">function</span> extract_vllm_metrics(tag, ts, record)
@@ -258,7 +340,7 @@ POD_LABEL_ALLOWLIST_REGEX=<span class="s">"app|model"</span></pre>
   record[<span class="s">"gen_tokens_per_s"</span>]   = tonumber(gen)
   record[<span class="s">"kv_cache_usage_pct"</span>] = tonumber(
     string.match(line, <span class="s">"KV cache usage:%s*([%d%.]+)%%"</span>))
-  <span class="c">-- promote pod identity to the top level</span>
+  <span class="c">-- promote pod name and namespace to the top level</span>
   <span class="k">local</span> k = record[<span class="s">"kubernetes"</span>] <span class="k">or</span> {}
   record[<span class="hl">"pod_name"</span>]  = k[<span class="s">"pod_name"</span>]
   record[<span class="hl">"namespace"</span>] = k[<span class="s">"namespace_name"</span>]
@@ -271,13 +353,13 @@ POD_LABEL_ALLOWLIST_REGEX=<span class="s">"app|model"</span></pre>
 <!-- 11 SIGNAL C -->
 <section class="slide" data-notes="Signal C. vLLM emits OTLP natively. Raw spans know the service name, not the pod. The k8sattributes processor resolves the source IP of the connection against the pod cache and stamps pod, namespace, node, deployment on the span. That one processor is what makes traces joinable with GPU metrics.">
   <div class="eyebrow trace">Signal C · OpenTelemetry Collector</div>
-  <h2>Stamp pod identity on every span.</h2>
+  <h2>Stamp the pod name on every span.</h2>
   <div class="row">
     <div class="col">
       <ul class="pl trace">
         <li>vLLM: <span style="font-family:var(--mono)">--otlp-traces-endpoint</span>, one trace per request</li>
         <li>Raw spans know the <i>service</i>, not the <i>pod</i></li>
-        <li><b>k8sattributes</b> resolves source IP → pod and stamps the identity</li>
+        <li><b>k8sattributes</b> resolves source IP → pod and stamps its name and namespace</li>
       </ul>
       <p class="small" style="margin-top:30px">Slow trace → pod name → same DCGM chart, same moment.</p>
     </div>
@@ -356,7 +438,7 @@ POD_LABEL_ALLOWLIST_REGEX=<span class="s">"app|model"</span></pre>
   <div class="steps">
     <div class="step"><div class="num">GOTCHA 2</div><h4>Auto Mode + GPU Operator</h4><p>Auto Mode already ships the NVIDIA driver and device plugin. The Operator fights it. Run <b>dcgm-exporter standalone</b>.</p></div>
     <div class="step"><div class="num">GOTCHA 3</div><h4>Fluent Bit tag prefix</h4><p>Custom <span style="font-family:var(--mono)">Tag</span> patterns make the kubernetes filter skip metadata with one quiet log line. Your join key becomes <b>empty</b>. Fix: <span style="font-family:var(--mono)">Tag kube.*</span> + <span style="font-family:var(--mono)">Kube_Tag_Prefix kube.var.log.containers.</span></p></div>
-    <div class="step"><div class="num">LESSON</div><h4>Validate the join key</h4><p>Assert pod identity is present in all three pipelines in CI. We ship a 12-check script that does exactly that.</p></div>
+    <div class="step"><div class="num">LESSON</div><h4>Validate the join key</h4><p>Assert the pod name is present in all three pipelines in CI. We ship a 12-check script that does exactly that.</p></div>
   </div>
 </section>
 
@@ -365,7 +447,7 @@ POD_LABEL_ALLOWLIST_REGEX=<span class="s">"app|model"</span></pre>
   <div class="eyebrow">Takeaways</div>
   <h2>Steal this for your cluster.</h2>
   <ul class="pl" style="margin-top:20px">
-    <li><b>One join key, pod identity,</b> enforced on all three pipelines. Everything else follows.</li>
+    <li><b>One join key, the pod name and namespace,</b> enforced on all three pipelines. Everything else follows.</li>
     <li><b>dcgm-exporter in Kubernetes mode,</b> bounded labels only. No arbitrary pod-label enrichment.</li>
     <li><b>Fluent Bit + Lua</b> turns serving logs into queryable throughput and KV-cache fields.</li>
     <li><b>k8sattributes</b> is the one OTel processor that makes traces joinable with GPU metrics.</li>
@@ -412,7 +494,8 @@ $ ./validate.sh
   function fit(){const k=Math.min(innerWidth/1920,innerHeight/1080);frame.style.transform='scale('+k+')'}
   function go(n){i=Math.max(0,Math.min(s.length-1,n));s.forEach((e,j)=>e.classList.toggle('active',j===i));
     document.getElementById('cur').textContent=i+1;document.getElementById('ntext').textContent=s[i].dataset.notes||'';
-    document.getElementById('progress').style.width=((i+1)/s.length*100)+'%';location.hash=i+1}
+    document.getElementById('progress').style.width=((i+1)/s.length*100)+'%';location.hash=i+1;countUp(s[i]);}
+  function countUp(slide){slide.querySelectorAll('[data-to]').forEach(el=>{const to=parseFloat(el.dataset.to),dur=1400,t0=performance.now(),dec=(el.dataset.dec|0);function tick(t){const k=Math.min(1,(t-t0)/dur),e=1-Math.pow(1-k,3),v=to*e;el.firstChild.textContent=dec?v.toFixed(dec):Math.round(v);if(k<1)requestAnimationFrame(tick);}el.firstChild.textContent='0';requestAnimationFrame(tick);});}
   addEventListener('resize',fit);fit();go(i);
   addEventListener('keydown',e=>{
     if(['ArrowRight',' ','PageDown','n'].includes(e.key)&&e.key!=='n')go(i+1);

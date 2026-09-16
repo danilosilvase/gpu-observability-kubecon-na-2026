@@ -28,7 +28,7 @@ chk "DCGM metric carries pod label" "echo \"$DCGM\" | grep DCGM_FI_DEV_FB_USED |
 echo "=== 4. SIGNAL B: Fluent Bit Lua extracted tokens/sec ==="
 sleep 5
 chk "fluent-bit parsed gen_tokens_per_s + pod_name" \
-  "kubectl -n observability logs ds/fluent-bit --tail=300 2>/dev/null | grep gen_tokens_per_s | grep -q pod_name"
+  "kubectl -n observability logs -l app=fluent-bit --all-containers --tail=300 2>/dev/null | grep gen_tokens_per_s | grep -q pod_name"
 
 echo "=== 5. SIGNAL C: OTel traces reached Jaeger ==="
 kubectl -n observability get pods -l app=jaeger -l app=otel-collector 2>/dev/null

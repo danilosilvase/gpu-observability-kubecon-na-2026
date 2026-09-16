@@ -19,7 +19,7 @@
   "panels": [
     {
       "type": "timeseries",
-      "title": "GPU framebuffer USED per pod (memory pressure)  [DCGM]",
+      "title": "GPU memory used per pod (framebuffer, memory pressure) · DCGM",
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
       "fieldConfig": {"defaults": {"unit": "decmbytes"}},
       "targets": [
@@ -29,7 +29,7 @@
     },
     {
       "type": "timeseries",
-      "title": "SM active ratio per pod (real utilisation)  [DCGM]",
+      "title": "GPU compute busy per pod (SM active, real utilisation) · DCGM",
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
       "fieldConfig": {"defaults": {"unit": "percentunit", "max": 1}},
       "targets": [
@@ -39,7 +39,7 @@
     },
     {
       "type": "timeseries",
-      "title": "Generation throughput tokens/s per pod  [vLLM /metrics]",
+      "title": "Generation throughput per pod (tokens/s) · vLLM",
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
       "fieldConfig": {"defaults": {"unit": "none"}},
       "targets": [
@@ -49,7 +49,7 @@
     },
     {
       "type": "timeseries",
-      "title": "KV cache usage % + requests waiting per pod  [vLLM]",
+      "title": "KV cache usage and requests waiting per pod · vLLM",
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
       "targets": [
         {"expr": "vllm:gpu_cache_usage_perc{pod=~\"$pod\"}",
@@ -60,7 +60,7 @@
     },
     {
       "type": "table",
-      "title": "Right-sizing view: GPU mem used vs KV cache per pod",
+      "title": "Right-sizing: GPU memory used vs KV cache per pod",
       "description": "Low FB_USED + low KV% = over-provisioned. High FB_USED + high KV% + waiting>0 = memory-constrained.",
       "gridPos": {"h": 8, "w": 24, "x": 0, "y": 16},
       "targets": [
@@ -75,7 +75,7 @@
       "title": "Traces",
       "gridPos": {"h": 4, "w": 24, "x": 0, "y": 24},
       "options": {"mode": "markdown",
-        "content": "Spans carry `k8s.pod.name` (OTel k8sattributes). Open Jaeger, filter service `vllm-opt125m`, and correlate a slow trace to the same pod's GPU memory + KV-cache panels above."}
+        "content": "Spans carry `k8s.pod.name` (OTel k8sattributes). Open Jaeger, filter service `vllm-constrained` or `vllm-overprov`, and correlate a slow trace to the same pod's GPU memory + KV-cache panels above."}
     }
   ]
 }

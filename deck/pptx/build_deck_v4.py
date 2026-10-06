@@ -227,33 +227,68 @@ def strap(slide, text, y=5450000, size=22, color=BRAND, h=800000):
              anchor=MSO_ANCHOR.MIDDLE)
 
 
-def fade_in(slide, shape, duration_ms=700):
-    """Click-triggered fade entrance on one shape (PowerPoint p:timing XML)."""
-    sid = shape.shape_id
+def strike(slide, x1, y1, x2, y2, color=RED, width=3.0):
+    """Plain line, no arrowhead: used to cross something out."""
+    c = slide.shapes.add_connector(MSO_CONNECTOR.STRAIGHT, Emu(x1), Emu(y1), Emu(x2), Emu(y2))
+    c.line.color.rgb = color; c.line.width = Pt(width)
+    st = c._element.find(qn("p:style"))
+    if st is not None: c._element.remove(st)
+    return c
+
+
+def fade_in(slide, shapes, duration_ms=700):
+    """Click-triggered fade entrance. One shape or a list; one click per shape, single sequence."""
+    if not isinstance(shapes, (list, tuple)):
+        shapes = [shapes]
+    nid = 3
+    clicks = []
+    for shape in shapes:
+        sid = shape.shape_id
+        a, b, c, d, e = nid, nid + 1, nid + 2, nid + 3, nid + 4
+        nid += 5
+        clicks.append(f"""<p:par><p:cTn id="{a}" fill="hold"><p:stCondLst><p:cond delay="indefinite"/></p:stCondLst><p:childTnLst>
+     <p:par><p:cTn id="{b}" fill="hold"><p:stCondLst><p:cond delay="0"/></p:stCondLst><p:childTnLst>
+      <p:par><p:cTn id="{c}" presetID="10" presetClass="entr" presetSubtype="0" fill="hold" grpId="0" nodeType="clickEffect">
+       <p:stCondLst><p:cond delay="0"/></p:stCondLst><p:childTnLst>
+        <p:set><p:cBhvr><p:cTn id="{d}" dur="1" fill="hold"><p:stCondLst><p:cond delay="0"/></p:stCondLst></p:cTn>
+         <p:tgtEl><p:spTgt spid="{sid}"/></p:tgtEl><p:attrNameLst><p:attrName>style.visibility</p:attrName></p:attrNameLst></p:cBhvr>
+         <p:to><p:strVal val="visible"/></p:to></p:set>
+        <p:animEffect transition="in" filter="fade"><p:cBhvr><p:cTn id="{e}" dur="{duration_ms}"/>
+         <p:tgtEl><p:spTgt spid="{sid}"/></p:tgtEl></p:cBhvr></p:animEffect>
+       </p:childTnLst></p:cTn></p:par>
+     </p:childTnLst></p:cTn></p:par>
+    </p:childTnLst></p:cTn></p:par>""")
+    builds = "".join(f'<p:bldP spid="{sh.shape_id}" grpId="0"/>' for sh in shapes)
     xml = f"""<p:timing xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
   <p:tnLst><p:par><p:cTn id="1" dur="indefinite" restart="never" nodeType="tmRoot"><p:childTnLst>
    <p:seq concurrent="1" nextAc="seek"><p:cTn id="2" dur="indefinite" nodeType="mainSeq"><p:childTnLst>
-    <p:par><p:cTn id="3" fill="hold"><p:stCondLst><p:cond delay="indefinite"/></p:stCondLst><p:childTnLst>
-     <p:par><p:cTn id="4" fill="hold"><p:stCondLst><p:cond delay="0"/></p:stCondLst><p:childTnLst>
-      <p:par><p:cTn id="5" presetID="10" presetClass="entr" presetSubtype="0" fill="hold" grpId="0" nodeType="clickEffect">
-       <p:stCondLst><p:cond delay="0"/></p:stCondLst><p:childTnLst>
-        <p:set><p:cBhvr><p:cTn id="6" dur="1" fill="hold"><p:stCondLst><p:cond delay="0"/></p:stCondLst></p:cTn>
-         <p:tgtEl><p:spTgt spid="{sid}"/></p:tgtEl><p:attrNameLst><p:attrName>style.visibility</p:attrName></p:attrNameLst></p:cBhvr>
-         <p:to><p:strVal val="visible"/></p:to></p:set>
-        <p:animEffect transition="in" filter="fade"><p:cBhvr><p:cTn id="7" dur="{duration_ms}"/>
-         <p:tgtEl><p:spTgt spid="{sid}"/></p:tgtEl></p:cBhvr></p:animEffect>
-       </p:childTnLst></p:cTn></p:par>
-     </p:childTnLst></p:cTn></p:par>
-    </p:childTnLst></p:cTn></p:par>
+    {"".join(clicks)}
    </p:childTnLst></p:cTn><p:prevCondLst><p:cond evt="onPrev" delay="0"><p:tgtEl><p:sldTgt/></p:tgtEl></p:cond></p:prevCondLst>
    <p:nextCondLst><p:cond evt="onNext" delay="0"><p:tgtEl><p:sldTgt/></p:tgtEl></p:cond></p:nextCondLst></p:seq>
   </p:childTnLst></p:cTn></p:par></p:tnLst>
-  <p:bldLst><p:bldP spid="{sid}" grpId="0"/></p:bldLst>
+  <p:bldLst>{builds}</p:bldLst>
 </p:timing>"""
     old = slide._element.find(qn("p:timing"))
     if old is not None: slide._element.remove(old)
     slide._element.append(etree.fromstring(xml))
+
+
+# ---------------------------------------------------------------- 2. title slide (template)
+s2 = prs.slides[1]
+for sh in s2.shapes:
+    if sh.has_text_frame and "Senior Delivery Consultant" in sh.text_frame.text:
+        for par, txt in zip(sh.text_frame.paragraphs,
+                            ["Danilo Souza, AWS Professional Services",
+                             "Henrique Santana, AWS Support",
+                             "Observability Day North America, Salt Lake City, 9 November 2026"]):
+            if par.runs:
+                par.runs[0].text = txt
+                for r in par.runs[1:]:
+                    r._r.getparent().remove(r._r)
+# show, do not tell: the thesis as two chips instead of a spoken sentence
+chip(s2, 729046, 5100000, 3000000, 560000, "GPU dashboard = ?", fill=WHITE, color=RED, size=18)
+chip(s2, 729046 + 3300000, 5100000, 3400000, 560000, "One log line = answer", fill=WHITE, color=GREEN, size=18)
 
 
 COL = (CW - 300000) // 2
@@ -292,7 +327,7 @@ fade_in(s, why_box)
 
 # ================================================================ 4. the hook
 s = content_slide(
-    "Same counter. Opposite story.",
+    "Utilisation alone tells you nothing.",
     src="Industry average production GPU utilisation ~5%: Cast AI, State of GPU utilisation 2026 (cast.ai/blog/fractional-gpu-kubernetes)",
     note=("0.5 min. Across the industry the average production GPU runs at around 5% utilisation. Our incident fleet "
           "reads 95%. Same counter, two readings. One fleet looks saturated, the other idle. On its own, the number "
@@ -314,27 +349,21 @@ strap(s, "On its own, this number says nothing about the inference work.", y=545
 
 # ================================================================ 5. pre-allocation (FB_USED panel)
 s = content_slide(
-    "vLLM grabs the memory before request one.",
-    src="Live rig, Oct 6 2026: two vLLM pods, facebook/opt-125m, EKS Auto Mode, g5.xlarge (A10G 24 GB). 0.90 x 24 GB = 21.6 GB; the gap to 20.5 GB is CUDA context and driver overhead.",
-    note=("Section 2 starts here, 4.5 min for slides 5 to 8. Every serious LLM server pre-allocates its memory pool "
+    "Memory usage is a config value, not a warning.",
+    src="Live rig, Oct 6 2026: two vLLM pods, facebook/opt-125m, EKS Auto Mode, g5.xlarge (A10G 24 GB).",
+    note=("Section 2 starts here, 4 min for slides 5 to 8. Every serious LLM server pre-allocates its memory pool "
           "at start-up: weights plus activation workspace plus the KV cache, capped by --gpu-memory-utilization. "
           "On our tiny demo model the weights are small, so the pool is effectively KV cache. The framebuffer counter "
           "jumps to the configured fraction in the first 30 seconds and never moves again, idle or melting. "
           "Constrained pod at 0.15 shows 3.6 GB, over-provisioned at 0.90 shows 20.5 GB, both perfectly flat. "
           "The one with less memory is the one that will get into trouble, and this counter cannot tell you that."))
-px, py, pw, ph = panel(s, LM, BODY_TOP, 7400000, 4200000, "panel-2.png")
-callout(s, px + pw - 2300000, py + int(ph * 0.14), 2100000, 620000, "20.5 GB, flat", "gpu-mem-util 0.90", fill=GREEN, size=20)
-callout(s, px + pw - 2300000, py + int(ph * 0.62), 2100000, 620000, "3.6 GB, flat", "gpu-mem-util 0.15", fill=BLUE, size=20)
-rx = LM + 7400000 + 300000; rw = CW - 7400000 - 300000
-text_box(s, rx, BODY_TOP, rw, 4200000, [
-    ("DCGM_FI_DEV_FB_USED", {**M(17, BRAND, True)}),
-    ("The counter everyone watches.", {"size": 16, "color": GREY}),
-    ("Pre-allocated pool: weights, activations, KV cache. Sized by --gpu-memory-utilization.", {"size": 17, "bullet": True}),
-    ("Jumps to the configured fraction at start-up.", {"size": 17, "bullet": True}),
-    ("Then flat. Idle or saturated, same number.", {"size": 17, "bullet": True}),
-    ("Which one is about to fall over? The smaller one. The counter says the opposite.", {"size": 17, "bold": True, "space_after": 0}),
-], space_after=10)
-strap(s, "It measures a config value. Never the workload sitting on top of it.", y=5550000, size=22)
+# show, do not tell: the chart carries the point, the five bullets are spoken only
+px, py, pw, ph = panel(s, LM, BODY_TOP, CW, 3900000, "panel-2.png")
+callout(s, px + pw - 2500000, py + int(ph * 0.12), 2300000, 640000, "20.5 GB, flat", "gpu-mem-util 0.90", fill=GREEN, size=20)
+callout(s, px + pw - 2500000, py + int(ph * 0.64), 2300000, 640000, "3.6 GB, flat", "gpu-mem-util 0.15", fill=BLUE, size=20)
+text_box(s, LM, 5200000, CW, 350000, [("DCGM_FI_DEV_FB_USED", {**M(17, GREY), "align": PP_ALIGN.CENTER, "space_after": 0})],
+         align=PP_ALIGN.CENTER)
+strap(s, "Sized once at start-up. Flat forever, including the one about to fall over.", y=5600000, size=24, h=600000)
 
 # ================================================================ 6. prefill vs decode
 s = content_slide(
@@ -354,11 +383,14 @@ card(s, LM + cw2 + 400000, BODY_TOP, cw2, 2900000, "Decode", [
     ("One token per step.", {"size": 22}),
     ("Re-reads the entire KV cache each step. Memory-bandwidth-bound.", {"size": 22}),
     ("Memory bus busy, tensor cores waiting.", {"size": 18, "color": GREY})], fill=BRAND_LIGHT, head_size=32)
-# util bar: both phases read 100%
+# show, do not tell: the same 100% stamped on two opposite realities
+for i in range(2):
+    chip(s, LM + i * (cw2 + 400000) + cw2 - 2550000, BODY_TOP + 2250000, 2400000, 520000,
+         "GPU_UTIL 100%", fill=RED, size=18)
+# util bar: the counter that cannot tell them apart
 by = BODY_TOP + 3200000
-rect(s, LM, by, CW, 700000, LIGHT, radius=0.3)
 rect(s, LM, by, CW, 700000, RGBColor(0xE8, 0xB4, 0xC4), radius=0.3)
-text_box(s, LM, by, CW, 700000, [[("DCGM_FI_DEV_GPU_UTIL ", M(18, DARK, True)), ("= 100% in both phases", {"size": 18, "bold": True})]],
+text_box(s, LM, by, CW, 700000, [("DCGM_FI_DEV_GPU_UTIL", {**M(20, DARK, True), "align": PP_ALIGN.CENTER})],
          anchor=MSO_ANCHOR.MIDDLE, align=PP_ALIGN.CENTER)
 strap(s, "One busy thread reads as 100%. The counter has no idea which phase you are in.", y=by + 850000, size=22, h=700000)
 
@@ -444,12 +476,15 @@ for head, sub, lab, x, y in srcs:
         (lab, {**M(15, DARK, True), "align": PP_ALIGN.CENTER, "space_after": 0})], anchor=MSO_ANCHOR.MIDDLE, align=PP_ALIGN.CENTER)
     arrow(s, x + bw // 2, y + bh, cx + (x + bw // 2 - cx) // 6, cy - 600000, color=BRAND, width=3)
 kx, ky, kw, kh = cx - 2400000, cy - 600000, 4800000, 1200000
-rect(s, kx, ky, kw, kh, BRAND, radius=0.5)
-text_box(s, kx, ky, kw, kh, [("pod_name", {**M(40, WHITE, True), "align": PP_ALIGN.CENTER, "space_after": 0})],
-         anchor=MSO_ANCHOR.MIDDLE, align=PP_ALIGN.CENTER)
-text_box(s, LM, cy + 800000, CW, 700000, [
+pill = chip(s, kx, ky, kw, kh, "pod_name", fill=BRAND, color=WHITE, size=40, font=MONO)
+# show, do not tell: the join itself, not just the convergence
+where = chip(s, cx - 2100000, cy + 750000, 4200000, 560000, 'WHERE pod_name = $pod',
+             fill=WHITE, color=BRAND, size=18, font=MONO)
+where.line.color.rgb = BRAND; where.line.width = Pt(1.25)
+text_box(s, LM, cy + 1450000, CW, 700000, [
     ("Stamp it on every metric, log record and span. Join at query time. Nothing else is common to all three.",
      {"size": 20, "bold": True, "align": PP_ALIGN.CENTER, "space_after": 0})], align=PP_ALIGN.CENTER)
+fade_in(s, [pill, where])
 
 # ================================================================ 10. signal 1: DCGM per pod
 s = content_slide(
@@ -490,11 +525,31 @@ s = content_slide(
           "added. Pod names churn on every rollout, so every label you add multiplies by churn. Here's the rule that "
           "fixed it. Identity on logs, stable dimensions on metrics, join at query time. We ship seven counters and one "
           "identity label, and we join on the fixed part of the pod name, never the hash."))
-text_box(s, LM, BODY_TOP, CW, 700000, [("1,000 nodes  x  8 GPUs  x  60 counters  x  3 labels", {**M(22, GREY), "align": PP_ALIGN.CENTER, "space_after": 0})],
+LW = 8400000
+text_box(s, LM, BODY_TOP, LW, 700000, [("1,000 nodes  x  8 GPUs  x  60 counters  x  3 labels", {**M(18, GREY), "align": PP_ALIGN.CENTER, "space_after": 0})],
          align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
-text_box(s, LM, BODY_TOP + 650000, CW, 1500000, [("= 1.4M series", {"size": 96, "bold": True, "color": BRAND, "align": PP_ALIGN.CENTER, "space_after": 0})],
-         align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
-text_box(s, LM, BODY_TOP + 2150000, CW, 500000, [("before a single pod or job label. Every label you add multiplies by pod churn.", {"size": 18, "color": GREY, "align": PP_ALIGN.CENTER, "space_after": 0})],
+big = text_box(s, LM, BODY_TOP + 650000, LW, 1500000, [("= 1.4M series", {"size": 88, "bold": True, "color": BRAND, "align": PP_ALIGN.CENTER, "space_after": 0})],
+               align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
+text_box(s, LM, BODY_TOP + 2150000, LW, 500000, [("before a single pod or job label. Every label you add multiplies by pod churn.", {"size": 18, "color": GREY, "align": PP_ALIGN.CENTER, "space_after": 0})],
+         align=PP_ALIGN.CENTER)
+# show, do not tell: one pod name times churn, exploding into a dot cloud
+rx = LM + LW + 200000; rw = CW - LW - 200000
+chip(s, rx + (rw - 1500000) // 2, BODY_TOP + 100000, 1500000, 440000, "pod_name", fill=LIGHT, color=DARK, size=16, font=MONO)
+text_box(s, rx, BODY_TOP + 580000, rw, 350000, [("x every rollout", {"size": 16, "color": GREY, "align": PP_ALIGN.CENTER, "space_after": 0})],
+         align=PP_ALIGN.CENTER)
+arrow(s, rx + rw // 2, BODY_TOP + 950000, rx + rw // 2, BODY_TOP + 1180000, color=GREY, width=2)
+cloud = [(0.10, 0.08, 150000), (0.42, 0.02, 190000), (0.74, 0.11, 130000), (0.26, 0.26, 170000),
+         (0.58, 0.22, 140000), (0.86, 0.33, 160000), (0.05, 0.45, 120000), (0.37, 0.48, 180000),
+         (0.68, 0.52, 140000), (0.18, 0.66, 150000), (0.50, 0.72, 130000), (0.80, 0.70, 170000),
+         (0.32, 0.88, 120000), (0.62, 0.90, 150000)]
+for fx, fy, d in cloud:
+    ox = rx + int(fx * (rw - 250000))
+    oy = BODY_TOP + 1280000 + int(fy * 820000)
+    o = s.shapes.add_shape(MSO_SHAPE.OVAL, Emu(ox), Emu(oy), Emu(d), Emu(d))
+    o.fill.solid(); o.fill.fore_color.rgb = BRAND; o.line.fill.background()
+    stl = o._element.find(qn("p:style"))
+    if stl is not None: o._element.remove(stl)
+text_box(s, rx, BODY_TOP + 2150000, rw, 500000, [("series, per label", {"size": 16, "color": BRAND, "align": PP_ALIGN.CENTER, "space_after": 0})],
          align=PP_ALIGN.CENTER)
 tw = (CW - 2 * 300000) // 3
 for i, (a, b) in enumerate([("Identity", "on logs"), ("Stable dimensions", "on metrics"), ("Join", "at query time")]):
@@ -505,97 +560,71 @@ for i, (a, b) in enumerate([("Identity", "on logs"), ("Stable dimensions", "on m
         (b, {"size": 20, "align": PP_ALIGN.CENTER, "space_after": 0})], anchor=MSO_ANCHOR.MIDDLE, align=PP_ALIGN.CENTER)
 text_box(s, LM, BODY_TOP + 4350000, CW, 500000, [[("ENABLE_POD_LABELS=true", M(16, RED, True)), ("  is how you find out.", {"size": 16, "space_after": 0})]],
          align=PP_ALIGN.CENTER)
+fade_in(s, big)
 
-# ================================================================ 12. the raw log line
-def logline(slide, x, y, w, h, label, parts):
-    text_box(slide, x, y, w, 400000, [(label, {"size": 15, "color": GREY, "space_after": 0})])
-    runs = []
-    for t, hot in parts:
-        runs.append((t, M(15, BRAND if hot else GREY, hot)))
-    text_box(slide, x, y + 380000, w, h, [runs], fill=LIGHT, margin=150000, anchor=MSO_ANCHOR.MIDDLE)
-
+# ================================================================ 12. the serving log, as numbers
 s = content_slide(
-    "Signal 2: the serving log is the telemetry.",
-    src="vLLM V1 engine, vllm/v1/metrics/loggers.py: one stats line every 10 s while the engine is busy (DEBUG level when idle). Both lines from the live rig.",
-    note=("Section 4 is the centre of the talk, 6 min for slides 12 to 15. This is one line of vLLM stdout, every 10 "
-          "seconds while it is busy. Read the fields: prompt and generation throughput, running requests, waiting "
-          "requests, KV cache usage, prefix cache hit rate. When the scheduler starts evicting work because the cache "
-          "is full, a Preemptions field appears. Top line: the over-provisioned pod under steady load. Bottom: the "
-          "constrained pod during the demo load. Six facts about the inference work, and not one of them shows up in a "
-          "GPU counter."))
-logline(s, LM, BODY_TOP, CW, 950000, "vllm-overprov, steady load", [
-    ("INFO [loggers.py] Engine 000: Avg prompt throughput: 1180.2 tokens/s, Avg generation throughput: ", False),
-    ("4711.7 tokens/s", True), (", ", False), ("Running: 15 reqs", True), (", ", False), ("Waiting: 0 reqs", True), (", ", False),
-    ("GPU KV cache usage: 0.1%", True), (", Prefix cache hit rate: 0.0%", False)])
-logline(s, LM, BODY_TOP + 1650000, CW, 1150000, "vllm-constrained, saturating load", [
-    ("INFO [loggers.py] Engine 000: Avg prompt throughput: 9810.4 tokens/s, Avg generation throughput: ", False),
-    ("17227.0 tokens/s", True), (", ", False), ("Running: 76 reqs", True), (", ", False), ("Waiting: 116 reqs", True), (", ", False),
-    ("Preemptions: 41", True), (", ", False), ("GPU KV cache usage: 99.6%", True), (", Prefix cache hit rate: 0.0%", False)])
-cy = BODY_TOP + 3450000
-cwid = (CW - 5 * 150000) // 6
-for i, t in enumerate(["tokens/s", "running", "waiting", "KV cache %", "prefix hits", "preemptions"]):
-    chip(s, LM + i * (cwid + 150000), cy, cwid, 520000, t, fill=BRAND, size=16)
-strap(s, "Six facts about the inference work, and not one of them shows up in a GPU counter.", y=cy + 700000, size=22)
+    "The log says six things the GPU can't.",
+    src="vLLM V1 engine, vllm/v1/metrics/loggers.py: one stats line every 10 s while the engine is busy (DEBUG level when idle). Numbers from the live rig.",
+    note=("Section 4 is the centre of the talk, 9:30 to 16:30 for slides 12 to 15. One line of vLLM stdout, every 10 "
+          "seconds while it is busy. Read the raw line aloud, do not put it on the slide. Over-provisioned pod: 4,700 "
+          "tokens a second, nothing waiting, cache at 0.1%. Constrained pod, same model: 17,000 tokens a second, 116 "
+          "waiting, cache at 99.6%, and a Preemptions field that only appears once the scheduler starts evicting work. "
+          "Six facts about the inference work, and not one of them shows up in a GPU counter."))
+rows = [("vllm-overprov, steady load", "4,711 tok/s  ·  0 waiting  ·  0.1% KV cache", GREY),
+        ("vllm-constrained, saturating load", "17,227 tok/s  ·  116 waiting  ·  99.6% KV cache", RED)]
+shapes = []
+for i, (lab, txt, col) in enumerate(rows):
+    y = BODY_TOP + 150000 + i * 1750000
+    text_box(s, LM, y, CW, 400000, [(lab, {"size": 16, "color": GREY, "space_after": 0})])
+    shapes.append(chip(s, LM, y + 480000, CW, 1100000, txt, fill=col, size=32))
+text_box(s, LM, BODY_TOP + 3700000, CW, 450000, [
+    ("tokens/s  ·  running  ·  waiting  ·  KV cache %  ·  prefix hits  ·  preemptions",
+     {**M(16, GREY), "align": PP_ALIGN.CENTER, "space_after": 0})], align=PP_ALIGN.CENTER)
+strap(s, "Six facts about the inference work, and not one of them shows up in a GPU counter.", y=5350000, size=22)
+fade_in(s, shapes[1])
 
 # ================================================================ 13. Lua pipeline
 s = content_slide(
-    "Fifteen lines of Lua turn it into per-pod metrics.",
+    "Fifteen lines of Lua. The pod name rides along.",
     src="Fluent Bit 5.1. Full filter and pipeline config in the repo. vLLM native metrics: docs.vllm.ai/en/latest/design/metrics",
     note=("Fluent Bit tails the container log, the kubernetes filter attaches the pod name (that is the join key "
-          "arriving), the Lua filter does five string.match calls and promotes pod_name to a top-level field, grep "
-          "drops everything that is not a stats line, log_to_metrics turns the fields into gauges labelled by "
-          "pod_name, and prometheus_exporter serves them on :2021 for the same Prometheus that scrapes DCGM. "
-          "Now the honest caveat, say it before someone asks: vLLM exposes all of this natively on /metrics, "
-          "kv_cache_usage_perc, num_requests_waiting, request_queue_time_seconds. vLLM is the demo vehicle. This is "
-          "for everything that doesn't have it: custom servers, vendor images you can't touch, log-only pipelines, "
-          "the TGI or Triton you inherited. Same fifteen lines, different regex."))
+          "arriving), five Lua string.match calls turn fields into numbers, grep keeps only stats lines, "
+          "log_to_metrics makes gauges labelled by pod, and prometheus_exporter serves them on :2021 for the same "
+          "Prometheus that scrapes DCGM. Then the honest caveat, spoken not shown: vLLM already exposes most of this "
+          "on /metrics; this filter is for the servers that don't, same lines, different regex."))
 stages = ["tail", "kubernetes", "lua", "grep", "log_to_metrics", "prometheus_exporter"]
 subs = ["container log", "+ pod_name", "5 x string.match", "stats lines only", "fields -> gauges", ":2021"]
-n = len(stages); gap = 180000; sw = (CW - (n - 1) * gap) // n; sy = BODY_TOP + 150000; sh_ = 900000
+n = len(stages); gap = 180000; sw = (CW - (n - 1) * gap) // n; sy = BODY_TOP + 1000000; sh_ = 1900000
 for i, (st, sb) in enumerate(zip(stages, subs)):
     x = LM + i * (sw + gap)
     hot = st in ("kubernetes", "lua")
     rect(s, x, sy, sw, sh_, BRAND if hot else LIGHT, radius=0.15)
-    text_box(s, x, sy, sw, sh_, [(st, {**M(15 if len(st) < 14 else 10, WHITE if hot else DARK, True), "align": PP_ALIGN.CENTER, "space_after": 2}),
-                                 (sb, {"size": 12, "color": WHITE if hot else GREY, "align": PP_ALIGN.CENTER, "space_after": 0})],
+    text_box(s, x, sy, sw, sh_, [(st, {**M(18 if len(st) < 10 else (12 if len(st) < 18 else 10), WHITE if hot else DARK, True), "align": PP_ALIGN.CENTER, "space_after": 6}),
+                                 (sb, {"size": 14, "color": WHITE if hot else GREY, "align": PP_ALIGN.CENTER, "space_after": 0})],
              anchor=MSO_ANCHOR.MIDDLE, align=PP_ALIGN.CENTER, margin=30000)
     if i < n - 1:
         arrow(s, x + sw, sy + sh_ // 2, x + sw + gap, sy + sh_ // 2, color=GREY, width=2)
 # pod_name token travelling along the pipeline
-dot_y = sy + sh_ + 230000
+dot_y = sy + sh_ + 300000
 for i in range(1, n):
     x = LM + i * (sw + gap) + sw // 2
-    d = s.shapes.add_shape(MSO_SHAPE.OVAL, Emu(x - 90000), Emu(dot_y), Emu(180000), Emu(180000))
+    d = s.shapes.add_shape(MSO_SHAPE.OVAL, Emu(x - 110000), Emu(dot_y), Emu(220000), Emu(220000))
     d.fill.solid(); d.fill.fore_color.rgb = BRAND; d.line.fill.background()
     st = d._element.find(qn("p:style"));  d._element.remove(st) if st is not None else None
-text_box(s, LM + sw + gap, dot_y + 200000, CW - sw - gap, 350000, [("pod_name rides along from the kubernetes filter onwards: the join key", {"size": 13, "color": BRAND, "space_after": 0})])
-# the one line that matters
-ly = BODY_TOP + 2000000
-rect(s, LM, ly, CW, 1250000, LIGHT)
-text_box(s, LM, ly, CW, 1250000, [
-    [("record[", M(17, GREY)), ("\"kv_cache_usage_pct\"", M(17, BRAND, True)), ("] =", M(17, GREY))],
-    [("    tonumber(string.match(line, ", M(17, GREY)), ("\"KV cache usage:%s*([%d%.]+)%%\"", M(17, BLUE, True)), ("))", M(17, GREY))],
-    [("record[", M(17, GREY)), ("\"pod_name\"", M(17, BRAND, True)), ("] = record[\"kubernetes\"][\"pod_name\"]", M(17, GREY)),
-     ("   -- the join key", M(17, GREEN, True))]], anchor=MSO_ANCHOR.MIDDLE, margin=200000, space_after=4)
-text_box(s, LM, ly + 1300000, CW, 400000, [[("field name", M(13, BRAND, True)), ("   ", M(13)), ("pattern against the log line", M(13, BLUE, True)),
-                                             ("   ", M(13)), ("identity from the kubernetes filter", M(13, GREEN, True)),
-                                             ("      13 more lines in the repo, same shape.", {"size": 13, "color": GREY})]])
-# metric names
-my = ly + 1780000
-for i, m in enumerate(["vllm_log_kv_cache_usage_pct{pod_name}", "vllm_log_waiting_reqs{pod_name}", "vllm_log_preemptions_total{pod_name}"]):
-    chip(s, LM + i * ((CW - 300000) // 3 + 150000), my, (CW - 300000) // 3, 440000, m, fill=WHITE, color=BRAND, size=12, font=MONO)
-rect(s, LM, my + 600000, CW, 750000, BRAND_LIGHT)
-text_box(s, LM, my + 600000, CW, 750000, [[("Honest caveat: ", {"size": 15, "bold": True, "color": BRAND}),
-    ("vLLM already exposes these on /metrics; it is our demo vehicle. The filter is for everything that doesn't: custom servers, vendor images you can't touch, log-only pipelines, the TGI or Triton you inherited. Same lines, different regex.", {"size": 15})]],
-    anchor=MSO_ANCHOR.MIDDLE, margin=150000)
+text_box(s, LM, dot_y + 320000, CW, 500000, [
+    ("pod_name rides along from the kubernetes filter onward: the join key",
+     {"size": 20, "bold": True, "color": BRAND, "align": PP_ALIGN.CENTER, "space_after": 0})], align=PP_ALIGN.CENTER)
+text_box(s, LM, dot_y + 850000, CW, 400000, [
+    ("For serving engines without a /metrics endpoint. vLLM exposes most of this natively; same pipeline, different regex.",
+     {"size": 16, "color": GREY, "align": PP_ALIGN.CENTER, "space_after": 0})], align=PP_ALIGN.CENTER)
 
 # ================================================================ 14. demo set-up (anchor)
 s = content_slide(
     "Live: two pods, one is about to run out.",
-    note=("LIVE DEMO anchor, 1 min. Start the loadgen before this slide (kubectl apply loadgen-job.yaml), it runs 12 "
-          "minutes. Tell the room what to watch before switching: row 1 is DCGM, row 2 is what the log knows. The "
-          "constrained pod is about to get long prompts at concurrency 128. Watch KV cache and waiting on row 2 while "
-          "FB_USED on row 1 does not move. Then switch to Grafana."))
+    note=("Demo signpost, 12:15 to 13:00, then the live demo runs 13:00 to 16:00. Nothing is typed on stage. Tell the "
+          "room what to watch before switching: row 1 is DCGM, row 2 is what the log knows. Henrique drives Grafana, "
+          "Danilo narrates. Hard stop at 16:30."))
 cw2 = (CW - 400000) // 2
 for i, (name, mem, role, col, fill) in enumerate([
         ("vllm-constrained", "gpu-mem-util 0.15, 3.6 GB", "gets the saturating load", BLUE, RGBColor(0xE4, 0xEE, 0xF8)),
@@ -629,20 +658,23 @@ text_box(s, LM, BODY_TOP + 3050000, cw2, 400000, [("DCGM: GPU memory used", {"si
 px, py, pw, ph = panel(s, LM + cw2 + 300000, BODY_TOP, cw2, 3000000, "panel-6.png")
 callout(s, px + 300000, py + int(ph * 0.3), 1900000, 800000, "100%", "KV cache, constrained pod", fill=BRAND, size=36)
 text_box(s, LM + cw2 + 300000, BODY_TOP + 3050000, cw2, 400000, [("The log: KV cache usage, per pod", {"size": 16, "bold": True, "color": GREY, "align": PP_ALIGN.CENTER, "space_after": 0})], align=PP_ALIGN.CENTER)
-tw = (CW - 2 * 300000) // 3
-for i, (num, lab) in enumerate([("4.8 s", "p95 queue time, was 0.3 s"), ("~100", "requests waiting"), ("0.2%", "KV cache on the over-provisioned pod")]):
-    x = LM + i * (tw + 300000)
-    rect(s, x, BODY_TOP + 3550000, tw, 1000000, LIGHT)
-    text_box(s, x, BODY_TOP + 3550000, tw, 1000000, [
-        (num, {"size": 30, "bold": True, "color": BRAND, "align": PP_ALIGN.CENTER, "space_after": 0}),
+tw = (CW - 3 * 220000) // 4
+# fourth chip is the honesty beat: DCGM did say busy, it just could not say why
+for i, (num, lab, col) in enumerate([("4.8 s", "p95 queue time, was 0.3 s", BRAND), ("~100", "requests waiting", BRAND),
+                                     ("0.2%", "KV cache, over-prov pod", BRAND),
+                                     ("90%", "SM_ACTIVE: busy, but blind", GREY)]):
+    x = LM + i * (tw + 220000)
+    rect(s, x, BODY_TOP + 3550000, tw, 900000, LIGHT)
+    text_box(s, x, BODY_TOP + 3550000, tw, 900000, [
+        (num, {"size": 30, "bold": True, "color": col, "align": PP_ALIGN.CENTER, "space_after": 0}),
         (lab, {"size": 14, "color": GREY, "align": PP_ALIGN.CENTER, "space_after": 0})], anchor=MSO_ANCHOR.MIDDLE, align=PP_ALIGN.CENTER)
-strap(s, "Queue time first. Waiting confirms. GPU memory never moved.", y=5700000, size=22, h=600000)
+strap(s, "Queue time first. Waiting confirms. GPU memory never moved.", y=5780000, size=22, h=550000)
 
 # ================================================================ 16. traces
 s = content_slide(
     "Signal 3: a slow span with a pod name.",
-    src="vLLM --otlp-traces-endpoint -> OTel Collector (k8sattributes) -> Jaeger. Tracing was removed in the V1 rewrite and reinstated in vllm PR #20372: needs vLLM >= 0.10.2 (rig: 0.30).",
-    note=("Section 5, 2.5 min. vLLM emits one span per request natively, you point it at the OTel Collector. The "
+    src="vLLM --otlp-traces-endpoint -> OTel Collector (k8sattributes) -> Jaeger. Tracing was removed in the V1 rewrite and reinstated in vllm PR #20372: needs vLLM >= 0.10.2 (rig: 0.30). gen_ai.* attributes follow OTel GenAI semconv, status Development, names can still change.",
+    note=("Section 5, 16:30 to 17:30. vLLM emits one span per request natively, you point it at the OTel Collector. The "
           "k8sattributes processor stamps k8s.pod.name on every span by looking up the source IP. A slow span by itself "
           "is just a fact. The same slow span, on the pod whose KV cache hit 100% that second, with 116 requests "
           "waiting, is a diagnosis. Gotcha worth saying out loud: tracing disappeared in the vLLM V1 engine rewrite and "
@@ -650,7 +682,9 @@ s = content_slide(
           "Keep this honest: we show traces from the serving path, one span per request. Multi-hop waterfalls are a "
           "flag away, not the point. Bonus in 0.30: start-up spans (load weights, allocate KV cache, compile graph)."))
 px, py, pw, ph = picture(s, LM, BODY_TOP, CW, 2350000, "jaeger-trace-detail.png")
-callout(s, px + pw - 2900000, py + 150000, 2700000, 600000, "llm_request  5.73 s", fill=BRAND, size=20)
+callout(s, px + pw - 3500000, py + 150000, 3300000, 600000, "llm_request  5.73 s", fill=BRAND, size=20)
+# show, do not tell: the fact plus the context that makes it a diagnosis
+chip(s, px + pw - 3500000, py + 830000, 3300000, 520000, "KV cache this second: 99.6%", fill=RED, size=16)
 cw3 = (CW - 2 * 200000) // 3
 for i, (k, v, col) in enumerate([("k8s.pod.name", "vllm-constrained-7f9fdfc497-2mjzz", BRAND),
                                  ("gen_ai.latency.time_in_queue", "0.61 s", BLUE),
@@ -669,11 +703,11 @@ strap(s, "A slow span by itself is just a fact. The same span on the pod whose K
 s = content_slide(
     "Same pod name. Three sources. One row.",
     src="Grafana dashboard uid gpu-inference-obs, variable $pod matches exported_pod (DCGM), pod_name (Fluent Bit) and pod (vLLM, traces). Constrained pod, 16:52 to 17:09.",
-    note=("Section 6, 2 min. This is the slide the whole talk builds to. One Grafana dashboard, one pod variable, three "
+    note=("Section 6, 17:30 to 19:30. This is the slide the whole talk builds to. One Grafana dashboard, one pod variable, three "
           "data sources that never heard of each other. Point at the red line, 16:56, when the load hits. KV cache "
           "pegs, queue time jumps from 0.3 to 4.8 seconds, and the DCGM row above is unchanged. That is the black box "
           "opened. No new agent, no vendor, no eBPF. Just the pod name on every signal, and the discipline to keep it there."))
-ph_each = 1560000; gapy = 60000; pwid = 7280000
+ph_each = 1500000; gapy = 60000; pwid = 7280000
 names = [("panel-2-wide.png", "DCGM memory", "flat", GREY), ("panel-6-wide.png", "KV cache (log)", "100%", BRAND), ("panel-10-wide.png", "queue time p95 (/metrics)", "0.3 s to 4.8 s", RED)]
 x0 = LM; ytop = BODY_TOP
 for i, (f, lab, word, col) in enumerate(names):
@@ -689,24 +723,35 @@ lx = px + int(pw * frac)
 yend = ytop + 3 * ph_each + 2 * gapy
 vline(s, lx, ytop - 40000, yend + 40000, color=RED, width=2.5)
 chip(s, lx + 80000, ytop + 60000, 1350000, 300000, "16:56  load hits", fill=RED, size=11)
-strap(s, "No new agent, no vendor, no eBPF. Just the pod name on every signal, and the discipline to keep it there.", y=yend + 60000, size=16, h=420000)
+opened = chip(s, LM, yend + 60000, 1650000, 460000, "Opened.", fill=BRAND, size=20)
+strap(s, "No new agent, no vendor, no eBPF. Just the pod name on every signal.",
+      y=yend + 60000, size=18, h=460000)
+s.shapes[-1].left = Emu(LM + 1800000); s.shapes[-1].width = Emu(CW - 1800000)
+fade_in(s, opened)
 
 # ================================================================ 18. what broke
 s = content_slide(
     "What silently broke along the way.",
     src="EKS Auto Mode GPU support: docs.aws.amazon.com/eks/latest/userguide/device-management-nvidia-dra-device-plugin.html. Two more gotchas (Fluent Bit Kube_Tag_Prefix, 1-GPU RollingUpdate) in the repo README.",
-    note=("0.5 min, one gotcha. EKS Auto Mode ships NVIDIA drivers and the device plugin on its GPU AMIs, but does "
+    note=("20 seconds, one gotcha. EKS Auto Mode ships NVIDIA drivers and the device plugin on its GPU AMIs, but does "
           "not support the GPU Operator or the NVIDIA DRA driver. Every DCGM how-to assumes the Operator. So: "
           "standalone dcgm-exporter DaemonSet, pod-resources hostPath, SYS_ADMIN cap. Two more in the repo if asked: "
           "Fluent Bit's kubernetes filter needs Kube_Tag_Prefix to match the tail tag exactly or the pod name silently "
           "never arrives, and a 1-GPU pod on a NodePool capped at two GPUs can never RollingUpdate, use Recreate."))
 tw = (CW - 2 * 300000) // 3
 for i, (head, body, col, fill) in enumerate([
-        ("What we expected", "GPU Operator installs DCGM on EKS Auto Mode, like every how-to says.", GREY, LIGHT),
-        ("What happened", "Auto Mode supports neither the GPU Operator nor the NVIDIA DRA driver. Drivers and device plugin come with the AMI.", RED, RED_LIGHT),
+        ("What we expected", "Every DCGM how-to assumes the GPU Operator. Check your platform's driver model before you follow one.", GREY, LIGHT),
+        ("What happened", "EKS Auto Mode supports neither the GPU Operator nor the NVIDIA DRA driver. Drivers and device plugin ship with the AMI.", RED, RED_LIGHT),
         ("Fix", "Standalone dcgm-exporter DaemonSet, pod-resources hostPath, SYS_ADMIN. Seven counters.", GREEN, GREEN_LIGHT)]):
     x = LM + i * (tw + 300000)
     card(s, x, BODY_TOP + 300000, tw, 2600000, head, [(body, {"size": 18})], fill=fill, head_color=col, head_size=22)
+    if i == 0:
+        # show, do not tell: the thing we expected, crossed out
+        bw_ = 2400000
+        bx = x + (tw - bw_) // 2; byy = BODY_TOP + 2280000
+        gpuop = chip(s, bx, byy, bw_, 460000, "GPU Operator", fill=WHITE, color=DARK, size=16)
+        gpuop.line.color.rgb = MID; gpuop.line.width = Pt(1.0)
+        strike(s, bx, byy + 420000, bx + bw_, byy + 40000, color=RED, width=3.0)
     if i < 2:
         arrow(s, x + tw + 40000, BODY_TOP + 1600000, x + tw + 260000, BODY_TOP + 1600000, color=GREY, width=2.5)
 text_box(s, LM, BODY_TOP + 3300000, CW, 1200000, [
@@ -715,44 +760,38 @@ text_box(s, LM, BODY_TOP + 3300000, CW, 1200000, [
 
 # ================================================================ 19. where this is going
 s = content_slide(
-    "Where this is going.",
-    src="llm-d on AWS: aws.amazon.com/blogs/machine-learning/introducing-disaggregated-inference-on-aws-powered-by-llm-d. Gateway API Inference Extension: github.com/kubernetes-sigs/gateway-api-inference-extension. CloudWatch OTel Container Insights for EKS (June 2026).",
-    note=("1 min. Three things before someone asks 'isn't this solved'. One: disaggregated prefill/decode (llm-d, NVIDIA "
-          "Dynamo, llm-d-aws) splits a request across two pods, KV cache shipped between them over NIXL and EFA; AWS "
-          "reports up to 70% more tokens per second at concurrency 128. The pod is no longer the whole request, so the "
-          "join key becomes request id plus pod. Two: the Gateway API Inference Extension's endpoint picker and Dynamo's "
-          "KV-aware router consume exactly these signals, queue depth and KV cache, to route. The join is moving from "
-          "Grafana into the router. Three: AWS's OTel-native Container Insights, June 2026, packages signal 1 for EKS out "
-          "of the box. Signals 2 and 3 are still yours to wire. Out of scope today, ask me after: XID/ECC/thermal faults, "
-          "output quality, eBPF GPU profiling, Dynamo internals."))
+    "The join key is moving into the router.",
+    src="llm-d on AWS: aws.amazon.com/blogs/machine-learning/introducing-disaggregated-inference-on-aws-powered-by-llm-d. Gateway API Inference Extension: github.com/kubernetes-sigs/gateway-api-inference-extension.",
+    note=("40 seconds. Three beats, vendor-neutral first. Today the join happens in Grafana. Next, disaggregated "
+          "serving splits one request across two pods, llm-d and Dynamo, so the join key becomes request id plus pod. "
+          "Then the router itself consumes queue depth and KV cache to route traffic, Gateway API Inference Extension "
+          "endpoint picker and Dynamo's KV-aware router, and the join leaves Grafana entirely."))
 tw = (CW - 2 * 300000) // 3
-steps = [("Today", "Join in Grafana", "Pod name on every signal, one dashboard variable.", LIGHT, GREY),
-         ("Disaggregated prefill / decode", "Join key = request id + pod", "llm-d, Dynamo, llm-d-aws: one request, two pods, KV cache over NIXL / EFA. Up to +70% tokens/s at concurrency 128.", BRAND_LIGHT, BRAND),
-         ("Routers consume the signals", "Join leaves Grafana", "Gateway API Inference Extension endpoint picker and Dynamo's KV-aware router route on queue depth and KV cache %.", BRAND, WHITE)]
-for i, (head, sub, body, fill, col) in enumerate(steps):
+steps = [("Today: join in Grafana", "one pod, one request", "PromQL on pod_name", LIGHT, DARK, GREY),
+         ("Next: join key = request id + pod", "prefill and decode on different pods", "llm-d, NVIDIA Dynamo", BRAND_LIGHT, BRAND, BRAND),
+         ("Then: router consumes the join", "routes on queue depth and KV cache", "Gateway API Inference Extension", BRAND, WHITE, WHITE)]
+for i, (head, sub, who, fill, col, subcol) in enumerate(steps):
     x = LM + i * (tw + 300000)
-    rect(s, x, BODY_TOP + 200000, tw, 2900000, fill)
-    text_box(s, x + 80000, BODY_TOP + 280000, tw - 160000, 2750000, [
-        (head, {"size": 20, "bold": True, "color": col if fill != BRAND else WHITE, "space_after": 2}),
-        (sub, {"size": 17, "bold": True, "color": DARK if fill != BRAND else WHITE, "space_after": 10}),
-        (body, {"size": 15, "color": DARK if fill != BRAND else WHITE, "space_after": 0})], margin=120000)
+    rect(s, x, BODY_TOP + 600000, tw, 2600000, fill)
+    text_box(s, x + 80000, BODY_TOP + 600000, tw - 160000, 2600000, [
+        (head, {"size": 26, "bold": True, "color": col, "align": PP_ALIGN.CENTER, "space_after": 10}),
+        (sub, {"size": 16, "color": subcol, "align": PP_ALIGN.CENTER, "space_after": 4}),
+        (who, {"size": 14, "color": subcol, "align": PP_ALIGN.CENTER, "space_after": 0, "font": MONO})],
+        anchor=MSO_ANCHOR.MIDDLE, align=PP_ALIGN.CENTER, margin=120000)
     if i < 2:
-        arrow(s, x + tw + 40000, BODY_TOP + 1650000, x + tw + 260000, BODY_TOP + 1650000, color=BRAND, width=3)
-rect(s, LM, BODY_TOP + 3350000, CW, 1000000, LIGHT)
-text_box(s, LM, BODY_TOP + 3350000, CW, 1000000, [
-    [("Signal 1 is becoming a checkbox. ", {"size": 16, "bold": True}),
-     ("CloudWatch OTel-native Container Insights for EKS (June 2026) wires DCGM into OTel with pod labels and a PromQL endpoint. Signals 2 and 3 are still yours to wire.", {"size": 16})]],
-    anchor=MSO_ANCHOR.MIDDLE, margin=150000)
+        arrow(s, x + tw + 40000, BODY_TOP + 1900000, x + tw + 260000, BODY_TOP + 1900000, color=BRAND, width=3)
+# the join key migrating, left to right
+chip(s, LM, BODY_TOP + 3550000, 1900000, 480000, "join key", fill=LIGHT, color=BRAND, size=18, font=MONO)
+arrow(s, LM + 2050000, BODY_TOP + 3790000, LM + CW - 100000, BODY_TOP + 3790000, color=BRAND, width=3)
 
 # ================================================================ 20. steal this
 s = content_slide(
     "Steal this for your cluster.",
-    src="Original session design: [original author, AWS]. Reproduced clean-room on EKS Auto Mode; all configs in the repo.",
-    note=("1 min. Three counters, one filter, one rule, that's the whole kit. SM_ACTIVE instead of GPU_UTIL. KV cache "
+    src="Reproduced clean-room on EKS Auto Mode; all configs in the repo.",
+    note=("30 seconds. Three counters, one filter, one rule, that's the whole kit. SM_ACTIVE instead of GPU_UTIL. KV cache "
           "percent and queue time from the serving framework, by log or by /metrics, whichever you have. Pod name on "
           "every signal, nothing else on the metrics. Everything in the repo deploys with one terraform apply on EKS "
-          "Auto Mode. Attribution: this session was designed by [original author]; we rebuilt it from the abstract and "
-          "broke different things along the way."))
+          "Auto Mode, and the repo pointer is the next slide."))
 tw = (CW - 2 * 300000) // 3
 cols = [("3 counters", [("DCGM_FI_PROF_SM_ACTIVE", "instead of GPU_UTIL"), ("KV cache %", "log or /metrics"), ("queue time p95", "then waiting")]),
         ("1 filter", [("15 lines of Lua", "+ log_to_metrics"), ("change the regex", "keep the pipeline"), ("works for", "TGI, Triton, anything that logs")]),
@@ -767,6 +806,8 @@ for i, (head, items) in enumerate(cols):
         text_box(s, x + 150000, y, tw - 300000, 850000, [
             (a, {**(M(16, DARK, True) if i == 0 and j == 0 else {"size": 18, "bold": True}), "align": PP_ALIGN.CENTER, "space_after": 0}),
             (b, {"size": 14, "color": GREY, "align": PP_ALIGN.CENTER, "space_after": 0})], anchor=MSO_ANCHOR.MIDDLE, align=PP_ALIGN.CENTER)
+# show, do not tell: the closing claim as a badge
+chip(s, (W - 2900000) // 2, 5700000, 2900000, 560000, "0 new agents", fill=BRAND, size=24)
 
 # ================================================================ 21. repo + QR
 s = prs.slides.add_slide(L_TITLE)

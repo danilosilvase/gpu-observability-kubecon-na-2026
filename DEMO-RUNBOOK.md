@@ -20,10 +20,10 @@ Deck: `deck/kubecon-na-2026-v4.pptx`, 21 slides, speaker notes on every slide. R
 | 0:00 | 1-2 | Cover, who we are (Danilo, then Henrique) |
 | 1:00 | 3-4 | The 02:14 incident, sparkline shows p99 doubling, hook |
 | 3:00 | 5-8 | Why GPU counters lie: pre-allocation, prefill vs decode, profiler counters, vocabulary (Henrique) |
-| 7:30 | 9 | The one idea: the pod is the join key (Danilo, pause here) |
-| 8:30 | 10-11 | Signal 1 DCGM per pod, cardinality war story |
-| 10:00 | 12-13 | Signal 2: the log line, Fluent Bit + Lua pipeline |
-| 12:45 | 14 | Demo anchor: "watch two rows", stay on the deck 15 s |
+| 7:00 | 9 | The one idea: the pod is the join key (Danilo, pause here) |
+| 8:00 | 10-11 | Signal 1 DCGM per pod, cardinality war story |
+| 9:30 | 12-13 | Signal 2: the log line, Fluent Bit + Lua pipeline |
+| 12:15 | 14 | Demo anchor: "watch two rows", stay on the deck 15 s |
 | 13:00 | live | Grafana three rows, 90 s (Henrique drives, Danilo narrates) |
 | 14:30 | live | Jaeger pre-opened trace, 60 s |
 | 15:30 | live | Back to Grafana, the aligned spike, 30 s |

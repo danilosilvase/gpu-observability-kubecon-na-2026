@@ -227,6 +227,35 @@ def strap(slide, text, y=5450000, size=22, color=BRAND, h=800000):
              anchor=MSO_ANCHOR.MIDDLE)
 
 
+def fade_in(slide, shape, duration_ms=700):
+    """Click-triggered fade entrance on one shape (PowerPoint p:timing XML)."""
+    sid = shape.shape_id
+    xml = f"""<p:timing xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+      xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <p:tnLst><p:par><p:cTn id="1" dur="indefinite" restart="never" nodeType="tmRoot"><p:childTnLst>
+   <p:seq concurrent="1" nextAc="seek"><p:cTn id="2" dur="indefinite" nodeType="mainSeq"><p:childTnLst>
+    <p:par><p:cTn id="3" fill="hold"><p:stCondLst><p:cond delay="indefinite"/></p:stCondLst><p:childTnLst>
+     <p:par><p:cTn id="4" fill="hold"><p:stCondLst><p:cond delay="0"/></p:stCondLst><p:childTnLst>
+      <p:par><p:cTn id="5" presetID="10" presetClass="entr" presetSubtype="0" fill="hold" grpId="0" nodeType="clickEffect">
+       <p:stCondLst><p:cond delay="0"/></p:stCondLst><p:childTnLst>
+        <p:set><p:cBhvr><p:cTn id="6" dur="1" fill="hold"><p:stCondLst><p:cond delay="0"/></p:stCondLst></p:cTn>
+         <p:tgtEl><p:spTgt spid="{sid}"/></p:tgtEl><p:attrNameLst><p:attrName>style.visibility</p:attrName></p:attrNameLst></p:cBhvr>
+         <p:to><p:strVal val="visible"/></p:to></p:set>
+        <p:animEffect transition="in" filter="fade"><p:cBhvr><p:cTn id="7" dur="{duration_ms}"/>
+         <p:tgtEl><p:spTgt spid="{sid}"/></p:tgtEl></p:cBhvr></p:animEffect>
+       </p:childTnLst></p:cTn></p:par>
+     </p:childTnLst></p:cTn></p:par>
+    </p:childTnLst></p:cTn></p:par>
+   </p:childTnLst></p:cTn><p:prevCondLst><p:cond evt="onPrev" delay="0"><p:tgtEl><p:sldTgt/></p:tgtEl></p:cond></p:prevCondLst>
+   <p:nextCondLst><p:cond evt="onNext" delay="0"><p:tgtEl><p:sldTgt/></p:tgtEl></p:cond></p:nextCondLst></p:seq>
+  </p:childTnLst></p:cTn></p:par></p:tnLst>
+  <p:bldLst><p:bldP spid="{sid}" grpId="0"/></p:bldLst>
+</p:timing>"""
+    old = slide._element.find(qn("p:timing"))
+    if old is not None: slide._element.remove(old)
+    slide._element.append(etree.fromstring(xml))
+
+
 COL = (CW - 300000) // 2
 RIGHT_X = LM + COL + 300000
 M = lambda s, c=DARK, b=False: {"font": MONO, "size": s, "color": c, "bold": b}
@@ -240,25 +269,25 @@ s = content_slide(
 text_box(s, LM, BODY_TOP + 300000, 4300000, 1300000, [
     ("02:14", {"size": 80, "bold": True, "color": BRAND, "space_after": 0}),
     ("p99 latency doubles", {"size": 24, "color": DARK, "space_after": 0})])
-text_box(s, LM, BODY_TOP + 1900000, 4300000, 2800000, [
+text_box(s, LM, BODY_TOP + 2150000, 4000000, 2000000, [
     ("The model is healthy.", {"size": 22}),
     ("The pods are Ready.", {"size": 22}),
-    ("Nothing is throttled.", {"size": 22}),
-    ("Nobody knows why.", {"size": 32, "bold": True, "color": BRAND, "space_after": 0})], space_after=10)
-gx, gy, gw, gh, gap = LM + 4700000, BODY_TOP + 300000, (CW - 4700000 - 2 * 200000) // 3, 3300000, 200000
-for i, (val, lab, sub) in enumerate([("95%", "GPU utilisation", "flat for an hour"),
-                                     ("90%", "GPU memory used", "flat since start"),
-                                     ("Ready", "all pods", "0 restarts, 0 OOM")]):
-    x = gx + i * (gw + gap)
-    rect(s, x, gy, gw, gh, GREEN_LIGHT, line=GREEN, line_w=1.5)
-    text_box(s, x, gy + 150000, gw, gh - 300000, [
-        (val, {"size": 54 if len(val) < 5 else 40, "bold": True, "color": GREEN, "align": PP_ALIGN.CENTER}),
-        (lab, {"size": 16, "bold": True, "align": PP_ALIGN.CENTER, "space_after": 0}),
-        (sub, {"size": 14, "color": GREY, "align": PP_ALIGN.CENTER, "space_after": 0})], anchor=MSO_ANCHOR.MIDDLE,
-        align=PP_ALIGN.CENTER, space_after=10)
-text_box(s, gx, gy + gh + 250000, CW - 4700000, 900000, [
+    ("Nothing is throttled.", {"size": 22, "space_after": 0})], space_after=10)
+why_box = text_box(s, LM, BODY_TOP + 4050000, 4300000, 800000, [
+    ("Nobody knows why.", {"size": 32, "bold": True, "color": BRAND, "space_after": 0})], space_after=0)
+# AI-generated scene (Stable Image Ultra via Bedrock, see gen_images.py): on-call engineer facing a wall of green
+# dashboards at 02:14. Replaces the three stat cards; the dashboards in the picture carry the "all green" message.
+IMG_X = LM + 4300000
+IMG_W = CW - 4300000
+IMG_H = IMG_W * 9 // 16
+px, py, pw, ph = picture(s, IMG_X, BODY_TOP + 100000, IMG_W, IMG_H, "incident-oncall.png", V4)
+f = s.shapes.add_shape(MSO_SHAPE.RECTANGLE, Emu(px), Emu(py), Emu(pw), Emu(ph))
+f.fill.background(); f.line.color.rgb = MID; f.line.width = Pt(0.75)
+st = f._element.find(qn("p:style")); f._element.remove(st) if st is not None else None
+text_box(s, IMG_X, py + ph + 150000, IMG_W, 700000, [
     ("Every signal the hardware gives you says: busy and healthy.", {"size": 18, "color": GREY, "align": PP_ALIGN.CENTER,
                                                                       "space_after": 0})], align=PP_ALIGN.CENTER)
+fade_in(s, why_box)
 
 # ================================================================ 4. the hook
 s = content_slide(

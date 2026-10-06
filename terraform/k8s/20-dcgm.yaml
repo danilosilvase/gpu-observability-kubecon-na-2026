@@ -23,7 +23,7 @@ spec:
       tolerations: [ { key: nvidia.com/gpu, operator: Exists, effect: NoSchedule } ]
       containers:
         - name: dcgm-exporter
-          image: nvcr.io/nvidia/k8s/dcgm-exporter:3.3.9-3.6.1-ubuntu22.04
+          image: nvcr.io/nvidia/k8s/dcgm-exporter:4.8.4
           args: ["-f","/etc/dcgm-exporter/counters.csv","--kubernetes=true","--kubernetes-gpu-id-type=uid"]
           env:
             - { name: DCGM_EXPORTER_KUBERNETES_ENABLE_POD_LABELS, value: "false" }

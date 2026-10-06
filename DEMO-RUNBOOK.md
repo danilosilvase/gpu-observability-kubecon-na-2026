@@ -1,7 +1,9 @@
 # KubeCon NA 2026 · "Inference Is a Black Box" · Demo runbook
 
 Slot: Mon 9 Nov 2026, 11:50 to 12:15 MST (18:50 Dublin), Observability Day Room 1, 25 min.
-Deck: deck/kubecon-na-2026.html (open in browser, press F for fullscreen, N for speaker notes, arrows to move).
+Deck: deck/kubecon-na-2026-v3.pptx (branded CNCF template, 18 slides, speaker notes on every slide). Rebuild from
+`deck/pptx/build_deck.py` after changing screenshots or text (see deck/pptx/README.md). The older HTML deck
+(deck/kubecon-na-2026.html) is v2 and superseded.
 
 ## Timing (25 min)
 
@@ -24,12 +26,20 @@ Deck: deck/kubecon-na-2026.html (open in browser, press F for fullscreen, N for 
 ```bash
 cd terraform
 export AWS_PROFILE=<your-admin-profile>
+# REQUIRED: terraform/terraform.tfvars (gitignored) with aws_profile and admin_cidrs. The providers read
+# var.aws_profile, not the env var; without it terraform looks at the "default" profile, sees an empty
+# account and plans to recreate the entire stack. Never apply that plan.
+printf 'aws_profile = "%s"\nadmin_cidrs = ["%s/32"]\n' "$AWS_PROFILE" "$(curl -s https://checkip.amazonaws.com)" > terraform.tfvars
 helm repo remove stable argo 2>/dev/null || true
 terraform init
 terraform apply -target=module.eks -auto-approve
 terraform apply -auto-approve
 ./validate.sh          # expect 12 passed / 0 failed
 ```
+
+Versions pinned in terraform/k8s: vLLM v0.30.0 (>= 0.10.2 needed for OTel tracing in the V1 engine),
+Fluent Bit 5.1.3, dcgm-exporter 4.8.4. vLLM pods use `strategy: Recreate` (one GPU per pod, NodePool capped
+at two GPUs, a RollingUpdate can never surge).
 
 Note the NodePool has expireAfter: 24h. Apply the evening before, not two days before, or the GPU nodes will rotate during the talk. If they do rotate, the pod names in slide 7 and 14 no longer match the live rig; that is fine, the point is the string is the same across pipelines, not which string.
 
@@ -52,13 +62,19 @@ kubectl -n observability port-forward svc/kube-prometheus-stack-grafana 3000:80
 # T2: Jaeger
 kubectl -n observability port-forward svc/jaeger-ui 16686:16686
 # T3: load, so charts are moving during the talk
-kubectl -n inference delete job loadgen --ignore-not-found
+kubectl -n inference delete job vllm-loadgen --ignore-not-found --wait=true
 kubectl -n inference apply -f ../manifests/20-vllm/loadgen-job.yaml
 ```
 
+The loadgen runs two profiles for 12 min: steady (16 concurrent, vllm-overprov) and saturate (192
+concurrent long unique-prefix requests, vllm-constrained). About 90 s after start, row 2 of the dashboard
+shows the constrained pod at KV cache 100%, waiting around 100, p95 queue time ~4.8 s, while FB_USED stays at
+3.6 GB. Validated Oct 6 2026. If you present from a new network, update admin_cidrs in terraform.tfvars and apply first
+or kubectl will time out.
+
 Browser tabs, in this order, all logged in and pre-zoomed to 125 percent:
 1. http://localhost:3000/d/gpu-inference-obs  (admin / gpu-obs-demo), time range last 15 min, refresh 10s
-2. http://localhost:16686  service = vllm-overprov, Find Traces
+2. http://localhost:16686  service = vllm-constrained, operation = llm_request, Find Traces (sort by duration)
 3. Deck
 
 Terminal font size 22+, dark theme, prompt shortened.
@@ -106,7 +122,8 @@ terraform destroy -auto-approve
 ```
 
 ## Open items before Nov 9
-- Review call with the original AWS author (calendar draft Thu 17 Sep 17:00 Dublin, not yet sent): confirm attribution wording for slide 17.
-- Repo published at github.com/danilosilvase/gpu-observability-kubecon-na-2026; keep it in sync with the deck.
-- Replace slide 9 bar chart with real before/after series counts from CARDINALITY-DEMO.md.
-- Rehearse twice against the clock, once with the fallback video.
+- Attribution wording on slide 17 ("[original author, AWS]" placeholder): confirm with the original author.
+- Repo publish to github.com/danilosilvase/gpu-observability-kubecon-na-2026 blocked on Code Defender approval (Vijay). Do not push the branded CNCF template or the research folder to the public repo.
+- CNCF feedback QR on slide 18 (placeholder); ask Henrique / CNCF for the session QR.
+- Rehearse twice against the clock (21 min talk + 4 Q&A), once with the fallback video.
+- Co-speaker split with Henrique Santana still to agree.

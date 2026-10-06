@@ -46,10 +46,83 @@ data:
         Name    grep
         Match   kube.*
         Regex   vllm_parsed true
+    # 5) log_to_metrics: turn the parsed fields into Prometheus gauges labelled by pod_name.
+    #    This is the "the log line IS the telemetry" step: no exporter needed on the server side.
+    [FILTER]
+        Name               log_to_metrics
+        Match              kube.*
+        Tag                vllm_log_metrics
+        Metric_mode        gauge
+        Metric_namespace   vllm
+        Metric_subsystem   log
+        Metric_name        kv_cache_usage_pct
+        Metric_description KV cache usage (%) parsed from the vLLM stats log line
+        Value_field        kv_cache_usage_pct
+        Label_field        pod_name
+        Label_field        namespace
+        Kubernetes_mode    off
+    [FILTER]
+        Name               log_to_metrics
+        Match              kube.*
+        Tag                vllm_log_metrics
+        Metric_mode        gauge
+        Metric_namespace   vllm
+        Metric_subsystem   log
+        Metric_name        waiting_reqs
+        Metric_description Requests waiting in the scheduler queue, parsed from the vLLM stats log line
+        Value_field        waiting_reqs
+        Label_field        pod_name
+        Label_field        namespace
+        Kubernetes_mode    off
+    [FILTER]
+        Name               log_to_metrics
+        Match              kube.*
+        Tag                vllm_log_metrics
+        Metric_mode        gauge
+        Metric_namespace   vllm
+        Metric_subsystem   log
+        Metric_name        running_reqs
+        Metric_description Requests currently running, parsed from the vLLM stats log line
+        Value_field        running_reqs
+        Label_field        pod_name
+        Label_field        namespace
+        Kubernetes_mode    off
+    [FILTER]
+        Name               log_to_metrics
+        Match              kube.*
+        Tag                vllm_log_metrics
+        Metric_mode        gauge
+        Metric_namespace   vllm
+        Metric_subsystem   log
+        Metric_name        preemptions_total
+        Metric_description Preemptions (requests evicted because KV cache was full), parsed from the vLLM stats log line
+        Value_field        preemptions
+        Label_field        pod_name
+        Label_field        namespace
+        Kubernetes_mode    off
+    [FILTER]
+        Name               log_to_metrics
+        Match              kube.*
+        Tag                vllm_log_metrics
+        Metric_mode        gauge
+        Metric_namespace   vllm
+        Metric_subsystem   log
+        Metric_name        gen_tokens_per_s
+        Metric_description Generation throughput (tokens/s) parsed from the vLLM stats log line
+        Value_field        gen_tokens_per_s
+        Label_field        pod_name
+        Label_field        namespace
+        Kubernetes_mode    off
     [OUTPUT]
         Name   stdout
         Match  kube.*
         Format json_lines
+    # Expose the log-derived gauges on :2021/metrics (ClusterIP only, scraped by Prometheus)
+    [OUTPUT]
+        Name   prometheus_exporter
+        Match  vllm_log_metrics
+        Host   0.0.0.0
+        Port   2021
   parsers.conf: |
     [PARSER]
         Name        cri
@@ -70,6 +143,8 @@ data:
         record["running_reqs"]        = tonumber(string.match(line, "Running:%s*(%d+)%s*reqs")) or 0
         record["waiting_reqs"]        = tonumber(string.match(line, "Waiting:%s*(%d+)%s*reqs")) or 0
         record["kv_cache_usage_pct"]  = tonumber(string.match(line, "KV cache usage:%s*([%d%.]+)%%")) or 0.0
+        -- only printed by vLLM once the scheduler has evicted at least one request (KV cache full)
+        record["preemptions"]         = tonumber(string.match(line, "Preemptions:%s*(%d+)")) or 0
         record["vllm_parsed"]         = "true"
         local kube = record["kubernetes"] or {}
         record["pod_name"]  = kube["pod_name"]
@@ -90,7 +165,8 @@ spec:
       tolerations: [ { key: nvidia.com/gpu, operator: Exists, effect: NoSchedule } ]
       containers:
         - name: fluent-bit
-          image: fluent/fluent-bit:3.1.9
+          image: fluent/fluent-bit:5.1.3
+          ports: [ { name: metrics, containerPort: 2021 } ]
           volumeMounts:
             - { name: config, mountPath: /fluent-bit/etc/ }
             - { name: varlog, mountPath: /var/log, readOnly: true }
@@ -101,3 +177,11 @@ spec:
         - { name: varlog, hostPath: { path: /var/log } }
         - { name: containers, hostPath: { path: /var/log/containers } }
         - { name: pods, hostPath: { path: /var/log/pods } }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: fluent-bit-metrics, namespace: observability, labels: { app: fluent-bit } }
+spec:
+  type: ClusterIP
+  selector: { app: fluent-bit }
+  ports: [ { name: metrics, port: 2021, targetPort: 2021 } ]

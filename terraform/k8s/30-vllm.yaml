@@ -1,10 +1,18 @@
-# Two deployments with different --gpu-memory-utilization to create the
-# "over-provisioned (0.30) vs memory-constrained (0.90)" contrast.
+# Two deployments with different --gpu-memory-utilization.
+#   vllm-constrained (0.15): small pre-allocated pool -> small KV cache -> saturates under load.
+#   vllm-overprov    (0.90): large pre-allocated pool -> KV cache never fills.
+# Both show a FLAT DCGM_FI_DEV_FB_USED from minute one (vLLM pre-allocates), which is the
+# point of the talk: the GPU memory counter cannot tell you which one is in trouble.
+# vLLM >= 0.10.2 required: OTel tracing was dropped in the V1 engine rewrite and reinstated in PR #20372.
+# Per-request logging is off by default in V1 (would flood Fluent Bit at demo concurrency).
 apiVersion: apps/v1
 kind: Deployment
 metadata: { name: vllm-constrained, namespace: inference, labels: { app: vllm, model: opt-125m, profile: constrained } }
 spec:
   replicas: 1
+  # One GPU per pod and the NodePool is capped at 2 GPUs: a rolling update can never surge,
+  # so recreate in place (old pod releases the GPU, new pod takes it).
+  strategy: { type: Recreate }
   selector: { matchLabels: { app: vllm, profile: constrained } }
   template:
     metadata:
@@ -15,8 +23,8 @@ spec:
       tolerations: [ { key: nvidia.com/gpu, operator: Exists, effect: NoSchedule } ]
       containers:
         - name: vllm
-          image: vllm/vllm-openai:v0.9.0
-          args: ["--model=facebook/opt-125m","--gpu-memory-utilization=0.90","--max-model-len=1024","--otlp-traces-endpoint=grpc://otel-collector.observability:4317"]
+          image: vllm/vllm-openai:v0.30.0
+          args: ["--model=facebook/opt-125m","--gpu-memory-utilization=0.15","--max-model-len=1024","--max-num-seqs=256","--otlp-traces-endpoint=grpc://otel-collector.observability:4317"]
           env:
             - { name: OTEL_SERVICE_NAME, value: "vllm-constrained" }
             - { name: OTEL_EXPORTER_OTLP_TRACES_INSECURE, value: "true" }
@@ -35,6 +43,9 @@ kind: Deployment
 metadata: { name: vllm-overprov, namespace: inference, labels: { app: vllm, model: opt-125m, profile: overprovisioned } }
 spec:
   replicas: 1
+  # One GPU per pod and the NodePool is capped at 2 GPUs: a rolling update can never surge,
+  # so recreate in place (old pod releases the GPU, new pod takes it).
+  strategy: { type: Recreate }
   selector: { matchLabels: { app: vllm, profile: overprovisioned } }
   template:
     metadata:
@@ -45,8 +56,8 @@ spec:
       tolerations: [ { key: nvidia.com/gpu, operator: Exists, effect: NoSchedule } ]
       containers:
         - name: vllm
-          image: vllm/vllm-openai:v0.9.0
-          args: ["--model=facebook/opt-125m","--gpu-memory-utilization=0.30","--max-model-len=1024","--otlp-traces-endpoint=grpc://otel-collector.observability:4317"]
+          image: vllm/vllm-openai:v0.30.0
+          args: ["--model=facebook/opt-125m","--gpu-memory-utilization=0.90","--max-model-len=1024","--max-num-seqs=256","--otlp-traces-endpoint=grpc://otel-collector.observability:4317"]
           env:
             - { name: OTEL_SERVICE_NAME, value: "vllm-overprov" }
             - { name: OTEL_EXPORTER_OTLP_TRACES_INSECURE, value: "true" }

@@ -2,7 +2,9 @@
   "title": "GPU-Aware Inference Observability (pod-joined)",
   "uid": "gpu-inference-obs",
   "schemaVersion": 39,
-  "tags": ["gpu","inference","vllm","dcgm"],
+  "refresh": "10s",
+  "time": {"from": "now-15m", "to": "now"},
+  "tags": ["gpu","inference","vllm","dcgm","fluent-bit"],
   "templating": {
     "list": [
       {
@@ -18,64 +20,119 @@
   },
   "panels": [
     {
+      "type": "row", "title": "1. What DCGM tells you (and what it cannot)",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0}, "collapsed": false, "panels": []
+    },
+    {
       "type": "timeseries",
-      "title": "GPU memory used per pod (framebuffer, memory pressure) · DCGM",
-      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
-      "fieldConfig": {"defaults": {"unit": "decmbytes"}},
+      "title": "GPU memory used per pod (framebuffer) · DCGM",
+      "description": "Flat from minute one: vLLM pre-allocates --gpu-memory-utilization of the card. This counter cannot tell you which pod is in trouble.",
+      "gridPos": {"h": 7, "w": 8, "x": 0, "y": 1},
+      "fieldConfig": {"defaults": {"unit": "decmbytes", "min": 0}},
       "targets": [
-        {"expr": "DCGM_FI_DEV_FB_USED{exported_pod=~\"$pod\"}",
-         "legendFormat": "{{exported_pod}}"}
+        {"expr": "DCGM_FI_DEV_FB_USED{exported_pod=~\"$pod\"}", "legendFormat": "{{exported_pod}}"}
       ]
     },
     {
       "type": "timeseries",
-      "title": "GPU compute busy per pod (SM active, real utilisation) · DCGM",
-      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
-      "fieldConfig": {"defaults": {"unit": "percentunit", "max": 1}},
+      "title": "GPU utilization % (coarse) · DCGM",
+      "description": "Any kernel active in the sample window counts as busy. Pegs near 100% for both pods under load regardless of how much work is actually done.",
+      "gridPos": {"h": 7, "w": 8, "x": 8, "y": 1},
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100}},
       "targets": [
-        {"expr": "DCGM_FI_PROF_SM_ACTIVE{exported_pod=~\"$pod\"}",
-         "legendFormat": "{{exported_pod}}"}
+        {"expr": "DCGM_FI_DEV_GPU_UTIL{exported_pod=~\"$pod\"}", "legendFormat": "{{exported_pod}}"}
       ]
     },
     {
       "type": "timeseries",
-      "title": "Generation throughput per pod (tokens/s) · vLLM",
-      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
-      "fieldConfig": {"defaults": {"unit": "none"}},
+      "title": "SM active ratio (real compute occupancy) · DCGM",
+      "description": "DCGM_FI_PROF_SM_ACTIVE: fraction of streaming multiprocessors doing work. The honest compute signal.",
+      "gridPos": {"h": 7, "w": 8, "x": 16, "y": 1},
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1}},
       "targets": [
-        {"expr": "rate(vllm:generation_tokens_total{pod=~\"$pod\"}[1m])",
-         "legendFormat": "{{pod}}"}
+        {"expr": "DCGM_FI_PROF_SM_ACTIVE{exported_pod=~\"$pod\"}", "legendFormat": "{{exported_pod}}"}
+      ]
+    },
+    {
+      "type": "row", "title": "2. What the serving log knows (Fluent Bit + Lua -> log_to_metrics)",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 8}, "collapsed": false, "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "KV cache usage % per pod · parsed from vLLM log line",
+      "description": "The real 'GPU full' signal for an LLM server. vllm_log_kv_cache_usage_pct is a gauge emitted by Fluent Bit log_to_metrics from the 'GPU KV cache usage: NN%' field.",
+      "gridPos": {"h": 7, "w": 8, "x": 0, "y": 9},
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100,
+        "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 80}, {"color": "red", "value": 95}]}},
+        "overrides": []},
+      "options": {"legend": {"displayMode": "list"}},
+      "targets": [
+        {"expr": "vllm_log_kv_cache_usage_pct{pod_name=~\"$pod\"}", "legendFormat": "{{pod_name}}"}
       ]
     },
     {
       "type": "timeseries",
-      "title": "KV cache usage and requests waiting per pod · vLLM",
-      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "title": "Waiting, running and preemptions per pod · parsed from vLLM log line",
+      "description": "Waiting > 0 means the scheduler has no KV blocks left to admit requests; preemptions means it started evicting running ones. Latency rises here before any GPU counter moves.",
+      "gridPos": {"h": 7, "w": 8, "x": 8, "y": 9},
+      "fieldConfig": {"defaults": {"unit": "none", "min": 0}},
       "targets": [
-        {"expr": "vllm:gpu_cache_usage_perc{pod=~\"$pod\"}",
-         "legendFormat": "kv% {{pod}}"},
-        {"expr": "vllm:num_requests_waiting{pod=~\"$pod\"}",
-         "legendFormat": "waiting {{pod}}"}
+        {"expr": "vllm_log_waiting_reqs{pod_name=~\"$pod\"}", "legendFormat": "waiting {{pod_name}}"},
+        {"expr": "vllm_log_running_reqs{pod_name=~\"$pod\"}", "legendFormat": "running {{pod_name}}"},
+        {"expr": "vllm_log_preemptions_total{pod_name=~\"$pod\"}", "legendFormat": "preemptions {{pod_name}}"}
       ]
     },
     {
-      "type": "table",
-      "title": "Right-sizing: GPU memory used vs KV cache per pod",
-      "description": "Low FB_USED + low KV% = over-provisioned. High FB_USED + high KV% + waiting>0 = memory-constrained.",
-      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 16},
+      "type": "timeseries",
+      "title": "Generation throughput (tokens/s) per pod · parsed from vLLM log line",
+      "gridPos": {"h": 7, "w": 8, "x": 16, "y": 9},
+      "fieldConfig": {"defaults": {"unit": "none", "min": 0}},
       "targets": [
-        {"expr": "max by (exported_pod) (DCGM_FI_DEV_FB_USED{exported_pod=~\"$pod\"})",
-         "format": "table", "instant": true, "refId": "A"},
-        {"expr": "max by (pod) (vllm:gpu_cache_usage_perc{pod=~\"$pod\"})",
-         "format": "table", "instant": true, "refId": "B"}
+        {"expr": "vllm_log_gen_tokens_per_s{pod_name=~\"$pod\"}", "legendFormat": "{{pod_name}}"}
       ]
+    },
+    {
+      "type": "row", "title": "3. Cross-check: native vLLM /metrics (vLLM exposes these itself; many servers do not)",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 16}, "collapsed": false, "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Request queue time p95 · vLLM /metrics",
+      "description": "histogram_quantile over vllm:request_queue_time_seconds. The EARLIEST saturation signal: queue time rises before 'waiting' is visibly non-zero (Elastic, 2025). Queue time first, waiting confirms.",
+      "gridPos": {"h": 7, "w": 8, "x": 0, "y": 17},
+      "fieldConfig": {"defaults": {"unit": "s", "min": 0}},
+      "targets": [
+        {"expr": "histogram_quantile(0.95, sum by (le, pod) (rate(vllm:request_queue_time_seconds_bucket{pod=~\"$pod\"}[1m])))", "legendFormat": "p95 {{pod}}"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "KV cache usage % and requests waiting · vLLM /metrics",
+      "description": "Same numbers as row 2, scraped from vLLM's own Prometheus endpoint. They should agree. If your server does not expose them, row 2 is how you get them anyway.",
+      "gridPos": {"h": 7, "w": 8, "x": 8, "y": 17},
+      "targets": [
+        {"expr": "vllm:kv_cache_usage_perc{pod=~\"$pod\"} * 100 or vllm:gpu_cache_usage_perc{pod=~\"$pod\"} * 100", "legendFormat": "kv% {{pod}}"},
+        {"expr": "vllm:num_requests_waiting{pod=~\"$pod\"}", "legendFormat": "waiting {{pod}}"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Generation throughput (tokens/s) · vLLM /metrics",
+      "gridPos": {"h": 7, "w": 8, "x": 16, "y": 17},
+      "targets": [
+        {"expr": "rate(vllm:generation_tokens_total{pod=~\"$pod\"}[1m])", "legendFormat": "{{pod}}"}
+      ]
+    },
+    {
+      "type": "row", "title": "4. Traces (join on the same pod name)",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 24}, "collapsed": false, "panels": []
     },
     {
       "type": "text",
       "title": "Traces",
-      "gridPos": {"h": 4, "w": 24, "x": 0, "y": 24},
+      "gridPos": {"h": 4, "w": 24, "x": 0, "y": 25},
       "options": {"mode": "markdown",
-        "content": "Spans carry `k8s.pod.name` (OTel k8sattributes). Open Jaeger, filter service `vllm-constrained` or `vllm-overprov`, and correlate a slow trace to the same pod's GPU memory + KV-cache panels above."}
+        "content": "Spans carry `k8s.pod.name` (OTel k8sattributes). Open Jaeger, filter service `vllm-constrained`, sort by duration: the slow spans sit exactly where row 2 shows KV cache at 100% and waiting > 0 for the same pod, while row 1 shows nothing new."}
     }
   ]
 }

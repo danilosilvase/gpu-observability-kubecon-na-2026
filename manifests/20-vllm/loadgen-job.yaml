@@ -1,42 +1,70 @@
-# Load generator: keeps TTFT / tokens-s / KV-cache pressure moving for the
-# whole demo. Runs for DEMO_SECONDS wall-clock (default 720s = 12 min), not a
-# fixed request count, so the charts stay live from setup through Q&A.
+# Load generator for the live demo. Two profiles run side by side for DEMO_SECONDS
+# (default 720 s = 12 min) so the charts stay live from set-up through Q&A:
+#
+#   steady    -> vllm-overprov    : 16 concurrent short requests, the healthy control
+#   saturate  -> vllm-constrained : 192 concurrent long requests, each with a UNIQUE prefix
+#                                   (otherwise vLLM prefix caching shares the KV blocks and
+#                                   the cache never fills) and ignore_eos so every request
+#                                   holds ~960 KV tokens -> KV cache hits 100%, Waiting > 0,
+#                                   preemptions appear, latency climbs, DCGM FB_USED does not move.
+#
+# Uses only the Python stdlib (no pip, no egress needed). Internal ClusterIP targets only.
+#
+#   kubectl apply  -f manifests/20-vllm/loadgen-job.yaml
+#   kubectl delete -f manifests/20-vllm/loadgen-job.yaml   # stop / reset
 apiVersion: batch/v1
 kind: Job
 metadata:
   name: vllm-loadgen
   namespace: inference
 spec:
-  parallelism: 4
-  completions: 4
+  parallelism: 1
+  completions: 1
+  backoffLimit: 0
   activeDeadlineSeconds: 900
   template:
+    metadata:
+      labels: { app: vllm-loadgen }
     spec:
       restartPolicy: Never
       containers:
-        - name: hey
+        - name: loadgen
           image: python:3.12-slim
           env:
-            - { name: DEMO_SECONDS, value: "720" }
-          command: ["/bin/sh","-c"]
+            - { name: DEMO_SECONDS,      value: "720" }
+            - { name: STEADY_CONC,       value: "16" }
+            - { name: SATURATE_CONC,     value: "192" }
+            - { name: STEADY_URL,        value: "http://vllm-overprov.inference:8000/v1/completions" }
+            - { name: SATURATE_URL,      value: "http://vllm-constrained.inference:8000/v1/completions" }
+          command: ["python", "-u", "-c"]
           args:
             - |
-              pip install --quiet openai==1.* && python - <<'PY'
-              import os, time, concurrent.futures as cf
-              from openai import OpenAI
-              # Drive BOTH deployments so constrained vs over-provisioned both light up.
-              targets = [
-                  OpenAI(base_url="http://vllm-constrained.inference:8000/v1", api_key="x"),
-                  OpenAI(base_url="http://vllm-overprov.inference:8000/v1",   api_key="x"),
-              ]
-              def one(i):
-                  targets[i % len(targets)].completions.create(
-                      model="facebook/opt-125m",
-                      prompt="Explain GPU observability in one paragraph. "*8,
-                      max_tokens=256)
-              deadline = time.time() + int(os.environ.get("DEMO_SECONDS", "720"))
-              while time.time() < deadline:
-                  with cf.ThreadPoolExecutor(max_workers=16) as e:
-                      list(e.map(one, range(16)))
-                  time.sleep(1)
-              PY
+              import os, time, json, threading, uuid, urllib.request, urllib.error
+              DEADLINE = time.time() + int(os.environ["DEMO_SECONDS"])
+              SHORT = "Explain GPU observability in one paragraph. " * 8      # ~70 prompt tokens
+              LONG  = "Explain GPU observability for Kubernetes platform teams in detail. " * 40  # ~570 prompt tokens incl. uuid; +384 gen must stay < max-model-len 1024
+              def fire(url, prompt, max_tokens, ignore_eos):
+                  prompt = f"Request {uuid.uuid4().hex}. " + prompt   # defeat prefix caching
+                  body = json.dumps({"model": "facebook/opt-125m", "prompt": prompt,
+                                     "max_tokens": max_tokens, "ignore_eos": ignore_eos}).encode()
+                  req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"})
+                  try:
+                      urllib.request.urlopen(req, timeout=120).read()
+                  except urllib.error.HTTPError as e:
+                      print(f"{url.split('//')[1].split('.')[0]} HTTP {e.code}: {e.read()[:300]}", flush=True)
+                  except Exception as e:
+                      print(f"{url.split('//')[1].split('.')[0]} error: {e}", flush=True)
+              def worker(name, url, prompt, max_tokens, ignore_eos):
+                  n = 0
+                  while time.time() < DEADLINE:
+                      fire(url, prompt, max_tokens, ignore_eos); n += 1
+                  print(f"{name} done, {n} requests", flush=True)
+              threads = []
+              for i in range(int(os.environ["STEADY_CONC"])):
+                  threads.append(threading.Thread(target=worker, args=("steady", os.environ["STEADY_URL"], SHORT, 64, False)))
+              for i in range(int(os.environ["SATURATE_CONC"])):
+                  threads.append(threading.Thread(target=worker, args=("saturate", os.environ["SATURATE_URL"], LONG, 384, True)))
+              print(f"starting {len(threads)} workers for {os.environ['DEMO_SECONDS']}s", flush=True)
+              for t in threads: t.start()
+              for t in threads: t.join()
+              print("loadgen finished", flush=True)

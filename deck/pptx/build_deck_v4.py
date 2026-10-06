@@ -755,5 +755,10 @@ qs = 3600000
 rect(s, W - LM - qs - 200000, (H - qs) // 2 - 200000, qs + 400000, qs + 400000, WHITE, radius=0.05)
 picture(s, W - LM - qs, (H - qs) // 2, qs, qs, "cncf-feedback-qr.png")
 
+# speaker scripts (single source: speaker_notes.py)
+from speaker_notes import NOTES
+for idx, text in NOTES.items():
+    prs.slides[idx - 1].notes_slide.notes_text_frame.text = text
+
 prs.save(OUT)
 print(f"saved {OUT} with {len(prs.slides)} slides")

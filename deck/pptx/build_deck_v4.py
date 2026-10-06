@@ -266,14 +266,15 @@ s = content_slide(
     note=("1.5 min. Open with the incident, not the architecture. p99 doubled at 02:14. You open the GPU dashboard: "
           "utilisation 95%, framebuffer 90% used, both flat for an hour. Pods Ready, nothing throttled, no OOM, no "
           "restart. Everything the GPU can tell you says healthy and busy. Nobody knows why. That is the black box."))
-text_box(s, LM, BODY_TOP + 300000, 4300000, 1300000, [
-    ("02:14", {"size": 80, "bold": True, "color": BRAND, "space_after": 0}),
-    ("p99 latency doubles", {"size": 24, "color": DARK, "space_after": 0})])
-text_box(s, LM, BODY_TOP + 2150000, 4000000, 2000000, [
-    ("The model is healthy.", {"size": 22}),
-    ("The pods are Ready.", {"size": 22}),
-    ("Nothing is throttled.", {"size": 22, "space_after": 0})], space_after=10)
-why_box = text_box(s, LM, BODY_TOP + 4050000, 4300000, 800000, [
+text_box(s, LM, BODY_TOP + 150000, 4300000, 1000000, [
+    ("02:14", {"size": 72, "bold": True, "color": BRAND, "space_after": 0})])
+# show, do not tell: p99 sparkline (flat green, doubles red at 02:14) replaces the sentence "p99 latency doubles"
+picture(s, LM, BODY_TOP + 1050000, 4100000, 2050000, "p99-spark.png", V4)
+text_box(s, LM, BODY_TOP + 3150000, 4000000, 1100000, [
+    ("The model is healthy.", {"size": 20}),
+    ("The pods are Ready.", {"size": 20}),
+    ("Nothing is throttled.", {"size": 20, "space_after": 0})], space_after=6)
+why_box = text_box(s, LM, BODY_TOP + 4300000, 4300000, 800000, [
     ("Nobody knows why.", {"size": 32, "bold": True, "color": BRAND, "space_after": 0})], space_after=0)
 # AI-generated scene (Stable Image Ultra via Bedrock, see gen_images.py): on-call engineer facing a wall of green
 # dashboards at 02:14. Replaces the three stat cards; the dashboards in the picture carry the "all green" message.

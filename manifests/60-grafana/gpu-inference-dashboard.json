@@ -60,9 +60,10 @@
           "uid": "prometheus"
         },
         "query": {
-          "query": "label_values(DCGM_FI_DEV_FB_USED{exported_pod=~\"vllm-.*\"}, exported_pod)",
+          "query": "query_result(kube_pod_status_phase{namespace=\"inference\", phase=\"Running\", pod=~\"vllm-(constrained|overprov).*\"} == 1)",
           "refId": "pod"
         },
+        "regex": "/pod=\"([^\"]+)\"/",
         "includeAll": true,
         "multi": true,
         "refresh": 2,
@@ -97,7 +98,7 @@
           },
           "refId": "A",
           "legendFormat": "{{pod_name}}",
-          "expr": "max by (pod_name) (max_over_time(vllm_log_kv_cache_usage_pct{pod_name=~\"$pod\"}[5m]))"
+          "expr": "max by (pod_name) (max_over_time(vllm_log_kv_cache_usage_pct{pod_name=~\"$pod\"}[5m])) and on(pod_name) label_replace(kube_pod_status_phase{namespace=\"inference\", phase=\"Running\"} == 1, \"pod_name\", \"$1\", \"pod\", \"(.*)\")"
         }
       ],
       "fieldConfig": {
@@ -348,7 +349,7 @@
             "uid": "prometheus"
           },
           "refId": "A",
-          "expr": "vllm_log_kv_cache_usage_pct{pod_name=~\"$pod\"}",
+          "expr": "vllm_log_kv_cache_usage_pct{pod_name=~\"$pod\"} and on(pod_name) label_replace(kube_pod_status_phase{namespace=\"inference\", phase=\"Running\"} == 1, \"pod_name\", \"$1\", \"pod\", \"(.*)\")",
           "legendFormat": "{{pod_name}}"
         }
       ]
@@ -547,11 +548,11 @@
                     },
                     {
                       "color": "orange",
-                      "value": 1000
+                      "value": 1000000
                     },
                     {
                       "color": "red",
-                      "value": 3000
+                      "value": 3000000
                     }
                   ]
                 }
@@ -656,11 +657,11 @@
                     },
                     {
                       "color": "orange",
-                      "value": 1000
+                      "value": 1000000
                     },
                     {
                       "color": "red",
-                      "value": 3000
+                      "value": 3000000
                     }
                   ]
                 }
@@ -932,7 +933,7 @@
                 "uid": "prometheus"
               },
               "refId": "A",
-              "expr": "vllm_log_gen_tokens_per_s{pod_name=~\"$pod\"}",
+              "expr": "vllm_log_gen_tokens_per_s{pod_name=~\"$pod\"} and on(pod_name) label_replace(kube_pod_status_phase{namespace=\"inference\", phase=\"Running\"} == 1, \"pod_name\", \"$1\", \"pod\", \"(.*)\")",
               "legendFormat": "{{pod_name}}"
             }
           ]
@@ -1015,7 +1016,7 @@
                 "uid": "prometheus"
               },
               "refId": "A",
-              "expr": "vllm_log_waiting_reqs{pod_name=~\"$pod\"}",
+              "expr": "vllm_log_waiting_reqs{pod_name=~\"$pod\"} and on(pod_name) label_replace(kube_pod_status_phase{namespace=\"inference\", phase=\"Running\"} == 1, \"pod_name\", \"$1\", \"pod\", \"(.*)\")",
               "legendFormat": "waiting {{pod_name}}"
             },
             {
@@ -1024,7 +1025,7 @@
                 "uid": "prometheus"
               },
               "refId": "B",
-              "expr": "vllm_log_running_reqs{pod_name=~\"$pod\"}",
+              "expr": "vllm_log_running_reqs{pod_name=~\"$pod\"} and on(pod_name) label_replace(kube_pod_status_phase{namespace=\"inference\", phase=\"Running\"} == 1, \"pod_name\", \"$1\", \"pod\", \"(.*)\")",
               "legendFormat": "running {{pod_name}}"
             },
             {
@@ -1033,7 +1034,7 @@
                 "uid": "prometheus"
               },
               "refId": "C",
-              "expr": "vllm_log_preemptions_total{pod_name=~\"$pod\"}",
+              "expr": "vllm_log_preemptions_total{pod_name=~\"$pod\"} and on(pod_name) label_replace(kube_pod_status_phase{namespace=\"inference\", phase=\"Running\"} == 1, \"pod_name\", \"$1\", \"pod\", \"(.*)\")",
               "legendFormat": "preempted {{pod_name}}"
             }
           ]

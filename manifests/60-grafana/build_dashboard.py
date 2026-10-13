@@ -2,6 +2,8 @@ import json, sys
 P = {"type": "prometheus", "uid": "prometheus"}
 J = {"type": "jaeger", "uid": "jaeger"}
 RED, BLUE = "red", "blue"
+# Fluent Bit log_to_metrics gauges keep their last value after a pod dies. Join on pods Running now.
+LIVE = ' and on(pod_name) label_replace(kube_pod_status_phase{namespace="inference", phase="Running"} == 1, "pod_name", "$1", "pod", "(.*)")'
 
 def colours():
     return [
@@ -42,8 +44,8 @@ def traces(pid, title, service, x, y, w, h):
                                                           {"id": "unit", "value": "µs"},
                                                           {"id": "thresholds", "value": {"mode": "absolute", "steps": [
                                                               {"color": "green", "value": None},
-                                                              {"color": "orange", "value": 1000},
-                                                              {"color": "red", "value": 3000}]}}]}]},
+                                                              {"color": "orange", "value": 1000000},
+                                                              {"color": "red", "value": 3000000}]}}]}]},
             "options": {"showHeader": True, "cellHeight": "sm"}}
 
 panels = []
@@ -53,7 +55,7 @@ panels.append({
     "description": "KV cache is the real 'GPU full' for an LLM server. Over 90% = memory-constrained, under 30% = over-provisioned.",
     "datasource": P, "gridPos": {"x": 0, "y": 0, "w": 24, "h": 5},
     "targets": [{"datasource": P, "refId": "A", "legendFormat": "{{pod_name}}",
-                 "expr": 'max by (pod_name) (max_over_time(vllm_log_kv_cache_usage_pct{pod_name=~"$pod"}[5m]))'}],
+                 "expr": 'max by (pod_name) (max_over_time(vllm_log_kv_cache_usage_pct{pod_name=~"$pod"}[5m]))' + LIVE}],
     "fieldConfig": {"defaults": {"unit": "percent", "decimals": 0,
         "mappings": [
             {"type": "range", "options": {"from": 90, "to": 1000, "result": {"text": "MEMORY-CONSTRAINED", "color": "red", "index": 0}}},
@@ -71,7 +73,7 @@ panels.append(ts(2, "1. GPU memory (DCGM): flat. The pod in trouble uses less",
     0, 5, 8, 12, "decmbytes", 0, 24576))
 panels.append(ts(3, "2. KV cache % (log line, Fluent Bit + Lua): one pod hits 100%",
     "Parsed from the vLLM stats log line by a 15-line Lua filter, turned into a metric by log_to_metrics.",
-    [{"expr": 'vllm_log_kv_cache_usage_pct{pod_name=~"$pod"}', "legendFormat": "{{pod_name}}"}],
+    [{"expr": 'vllm_log_kv_cache_usage_pct{pod_name=~"$pod"}' + LIVE, "legendFormat": "{{pod_name}}"}],
     8, 5, 8, 12, "percent", 0, 100,
     [{"color": "transparent", "value": None}, {"color": "red", "value": 90}]))
 panels.append(ts(4, "3. Queue time p95 (vLLM /metrics): requests start waiting",
@@ -92,11 +94,11 @@ detail = [
     ts(12, "GPU utilisation % (coarse, misleading) · DCGM", "",
        [{"expr": 'DCGM_FI_DEV_GPU_UTIL{exported_pod=~"$pod"}', "legendFormat": "{{exported_pod}}"}], 8, 24, 8, 8, "percent", 0, 100),
     ts(13, "Generation tokens/s · from the log", "",
-       [{"expr": 'vllm_log_gen_tokens_per_s{pod_name=~"$pod"}', "legendFormat": "{{pod_name}}"}], 16, 24, 8, 8, "none", 0),
+       [{"expr": 'vllm_log_gen_tokens_per_s{pod_name=~"$pod"}' + LIVE, "legendFormat": "{{pod_name}}"}], 16, 24, 8, 8, "none", 0),
     ts(14, "Waiting / running / preemptions · from the log", "",
-       [{"expr": 'vllm_log_waiting_reqs{pod_name=~"$pod"}', "legendFormat": "waiting {{pod_name}}"},
-        {"expr": 'vllm_log_running_reqs{pod_name=~"$pod"}', "legendFormat": "running {{pod_name}}"},
-        {"expr": 'vllm_log_preemptions_total{pod_name=~"$pod"}', "legendFormat": "preempted {{pod_name}}"}], 0, 32, 8, 8, "none", 0),
+       [{"expr": 'vllm_log_waiting_reqs{pod_name=~"$pod"}' + LIVE, "legendFormat": "waiting {{pod_name}}"},
+        {"expr": 'vllm_log_running_reqs{pod_name=~"$pod"}' + LIVE, "legendFormat": "running {{pod_name}}"},
+        {"expr": 'vllm_log_preemptions_total{pod_name=~"$pod"}' + LIVE, "legendFormat": "preempted {{pod_name}}"}], 0, 32, 8, 8, "none", 0),
     ts(15, "Cross-check: KV cache % · native vLLM /metrics", "vLLM exposes this itself; many servers do not, which is why the log path exists.",
        [{"expr": 'vllm:kv_cache_usage_perc{pod=~"$pod"} * 100', "legendFormat": "{{pod}}"}], 8, 32, 8, 8, "percent", 0, 100),
     ts(16, "Cross-check: tokens/s · native vLLM /metrics", "",
@@ -116,7 +118,9 @@ dash = {
         {"datasource": {"type": "grafana", "uid": "-- Grafana --"}, "enable": True, "iconColor": "orange",
          "name": "load hits", "target": {"type": "tags", "tags": ["load"], "matchAny": True, "limit": 20}}]},
     "templating": {"list": [{"name": "pod", "label": "pod", "type": "query", "datasource": P,
-        "query": {"query": 'label_values(DCGM_FI_DEV_FB_USED{exported_pod=~"vllm-.*"}, exported_pod)', "refId": "pod"},
+        # vLLM pods Running right now (instant query), so restarted pods drop off every panel.
+        "query": {"query": 'query_result(kube_pod_status_phase{namespace="inference", phase="Running", pod=~"vllm-(constrained|overprov).*"} == 1)', "refId": "pod"},
+        "regex": '/pod="([^"]+)"/',
         "includeAll": True, "multi": True, "refresh": 2, "current": {"text": "All", "value": "$__all"}}]},
     "panels": panels,
 }

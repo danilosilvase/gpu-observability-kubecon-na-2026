@@ -1,138 +1,1211 @@
 {
-  "title": "GPU-Aware Inference Observability (pod-joined)",
   "uid": "gpu-inference-obs",
+  "title": "GPU inference: the pod is the join key",
   "schemaVersion": 39,
   "refresh": "10s",
-  "time": {"from": "now-15m", "to": "now"},
-  "tags": ["gpu","inference","vllm","dcgm","fluent-bit"],
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
+  "tags": [
+    "gpu",
+    "inference",
+    "vllm",
+    "dcgm",
+    "fluent-bit",
+    "otel"
+  ],
+  "graphTooltip": 1,
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      },
+      {
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "iconColor": "orange",
+        "name": "load hits",
+        "target": {
+          "type": "tags",
+          "tags": [
+            "load"
+          ],
+          "matchAny": true,
+          "limit": 20
+        }
+      }
+    ]
+  },
   "templating": {
     "list": [
       {
         "name": "pod",
+        "label": "pod",
         "type": "query",
-        "datasource": {"type": "prometheus", "uid": "prometheus"},
-        "query": "label_values(DCGM_FI_DEV_FB_USED, exported_pod)",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(DCGM_FI_DEV_FB_USED{exported_pod=~\"vllm-.*\"}, exported_pod)",
+          "refId": "pod"
+        },
         "includeAll": true,
         "multi": true,
-        "refresh": 2
+        "refresh": 2,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
       }
     ]
   },
   "panels": [
     {
-      "type": "row", "title": "1. What DCGM tells you (and what it cannot)",
-      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0}, "collapsed": false, "panels": []
+      "id": 1,
+      "type": "stat",
+      "title": "Verdict per pod (peak KV cache, last 5 min, parsed from the serving log)",
+      "description": "KV cache is the real 'GPU full' for an LLM server. Over 90% = memory-constrained, under 30% = over-provisioned.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 5
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A",
+          "legendFormat": "{{pod_name}}",
+          "expr": "max by (pod_name) (max_over_time(vllm_log_kv_cache_usage_pct{pod_name=~\"$pod\"}[5m]))"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 0,
+          "mappings": [
+            {
+              "type": "range",
+              "options": {
+                "from": 90,
+                "to": 1000,
+                "result": {
+                  "text": "MEMORY-CONSTRAINED",
+                  "color": "red",
+                  "index": 0
+                }
+              }
+            },
+            {
+              "type": "range",
+              "options": {
+                "from": 30,
+                "to": 90,
+                "result": {
+                  "text": "BUSY",
+                  "color": "orange",
+                  "index": 1
+                }
+              }
+            },
+            {
+              "type": "range",
+              "options": {
+                "from": 0,
+                "to": 30,
+                "result": {
+                  "text": "OVER-PROVISIONED",
+                  "color": "blue",
+                  "index": 2
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "center",
+        "text": {
+          "titleSize": 30,
+          "valueSize": 52
+        },
+        "orientation": "vertical",
+        "wideLayout": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
     },
     {
+      "id": 2,
       "type": "timeseries",
-      "title": "GPU memory used per pod (framebuffer) · DCGM",
-      "description": "Flat from minute one: vLLM pre-allocates --gpu-memory-utilization of the card. This counter cannot tell you which pod is in trouble.",
-      "gridPos": {"h": 7, "w": 8, "x": 0, "y": 1},
-      "fieldConfig": {"defaults": {"unit": "decmbytes", "min": 0}},
+      "title": "1. GPU memory (DCGM): flat. The pod in trouble uses less",
+      "description": "vLLM reserves its GPU memory at start-up (--gpu-memory-utilization). This counter never moves under load, and the struggling pod looks the healthiest.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 8,
+        "h": 12
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "decmbytes",
+          "custom": {
+            "lineWidth": 3,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "min": 0,
+          "max": 24576
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*constrained.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*overprov.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
       "targets": [
-        {"expr": "DCGM_FI_DEV_FB_USED{exported_pod=~\"$pod\"}", "legendFormat": "{{exported_pod}}"}
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A",
+          "expr": "DCGM_FI_DEV_FB_USED{exported_pod=~\"$pod\"}",
+          "legendFormat": "{{exported_pod}}"
+        }
       ]
     },
     {
+      "id": 3,
       "type": "timeseries",
-      "title": "GPU utilization % (coarse) · DCGM",
-      "description": "Any kernel active in the sample window counts as busy. Pegs near 100% for both pods under load regardless of how much work is actually done.",
-      "gridPos": {"h": 7, "w": 8, "x": 8, "y": 1},
-      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100}},
+      "title": "2. KV cache % (log line, Fluent Bit + Lua): one pod hits 100%",
+      "description": "Parsed from the vLLM stats log line by a 15-line Lua filter, turned into a metric by log_to_metrics.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 5,
+        "w": 8,
+        "h": 12
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {
+            "lineWidth": 3,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true,
+            "thresholdsStyle": {
+              "mode": "line+area"
+            }
+          },
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "transparent",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*constrained.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*overprov.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
       "targets": [
-        {"expr": "DCGM_FI_DEV_GPU_UTIL{exported_pod=~\"$pod\"}", "legendFormat": "{{exported_pod}}"}
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A",
+          "expr": "vllm_log_kv_cache_usage_pct{pod_name=~\"$pod\"}",
+          "legendFormat": "{{pod_name}}"
+        }
       ]
     },
     {
+      "id": 4,
       "type": "timeseries",
-      "title": "SM active ratio (real compute occupancy) · DCGM",
-      "description": "DCGM_FI_PROF_SM_ACTIVE: fraction of streaming multiprocessors doing work. The honest compute signal.",
-      "gridPos": {"h": 7, "w": 8, "x": 16, "y": 1},
-      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1}},
+      "title": "3. Queue time p95 (vLLM /metrics): requests start waiting",
+      "description": "Time a request waits before the GPU picks it up. Rises when the KV cache is full.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 5,
+        "w": 8,
+        "h": 12
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "lineWidth": 3,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true,
+            "thresholdsStyle": {
+              "mode": "dashed"
+            }
+          },
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "transparent",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 3
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*constrained.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*overprov.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
       "targets": [
-        {"expr": "DCGM_FI_PROF_SM_ACTIVE{exported_pod=~\"$pod\"}", "legendFormat": "{{exported_pod}}"}
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le, pod) (rate(vllm:request_queue_time_seconds_bucket{pod=~\"$pod\"}[1m])))",
+          "legendFormat": "{{pod}}"
+        }
       ]
     },
     {
-      "type": "row", "title": "2. What the serving log knows (Fluent Bit + Lua -> log_to_metrics)",
-      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 8}, "collapsed": false, "panels": []
-    },
-    {
-      "type": "timeseries",
-      "title": "KV cache usage % per pod · parsed from vLLM log line",
-      "description": "The real 'GPU full' signal for an LLM server. vllm_log_kv_cache_usage_pct is a gauge emitted by Fluent Bit log_to_metrics from the 'GPU KV cache usage: NN%' field.",
-      "gridPos": {"h": 7, "w": 8, "x": 0, "y": 9},
-      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100,
-        "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 80}, {"color": "red", "value": 95}]}},
-        "overrides": []},
-      "options": {"legend": {"displayMode": "list"}},
+      "id": 5,
+      "type": "table",
+      "title": "4. Slowest requests on vllm-constrained (traces, click a Trace ID)",
+      "datasource": {
+        "type": "jaeger",
+        "uid": "jaeger"
+      },
+      "description": "Jaeger search for this service. Click a Trace ID: the trace opens, and each span has links to this pod's GPU memory and KV cache.",
+      "gridPos": {
+        "x": 0,
+        "y": 17,
+        "w": 12,
+        "h": 9
+      },
       "targets": [
-        {"expr": "vllm_log_kv_cache_usage_pct{pod_name=~\"$pod\"}", "legendFormat": "{{pod_name}}"}
-      ]
+        {
+          "datasource": {
+            "type": "jaeger",
+            "uid": "jaeger"
+          },
+          "refId": "A",
+          "queryType": "search",
+          "service": "vllm-constrained",
+          "operation": "llm_request",
+          "limit": 40
+        }
+      ],
+      "transformations": [
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Duration",
+                "desc": true
+              }
+            ]
+          }
+        },
+        {
+          "id": "limit",
+          "options": {
+            "limitField": 6
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Trace name": true,
+              "Start time": true
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "left"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Duration"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "unit",
+                "value": "\u00b5s"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 1000
+                    },
+                    {
+                      "color": "red",
+                      "value": 3000
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
     },
     {
-      "type": "timeseries",
-      "title": "Waiting, running and preemptions per pod · parsed from vLLM log line",
-      "description": "Waiting > 0 means the scheduler has no KV blocks left to admit requests; preemptions means it started evicting running ones. Latency rises here before any GPU counter moves.",
-      "gridPos": {"h": 7, "w": 8, "x": 8, "y": 9},
-      "fieldConfig": {"defaults": {"unit": "none", "min": 0}},
+      "id": 6,
+      "type": "table",
+      "title": "4. Slowest requests on vllm-overprov (traces, click a Trace ID)",
+      "datasource": {
+        "type": "jaeger",
+        "uid": "jaeger"
+      },
+      "description": "Jaeger search for this service. Click a Trace ID: the trace opens, and each span has links to this pod's GPU memory and KV cache.",
+      "gridPos": {
+        "x": 12,
+        "y": 17,
+        "w": 12,
+        "h": 9
+      },
       "targets": [
-        {"expr": "vllm_log_waiting_reqs{pod_name=~\"$pod\"}", "legendFormat": "waiting {{pod_name}}"},
-        {"expr": "vllm_log_running_reqs{pod_name=~\"$pod\"}", "legendFormat": "running {{pod_name}}"},
-        {"expr": "vllm_log_preemptions_total{pod_name=~\"$pod\"}", "legendFormat": "preemptions {{pod_name}}"}
+        {
+          "datasource": {
+            "type": "jaeger",
+            "uid": "jaeger"
+          },
+          "refId": "A",
+          "queryType": "search",
+          "service": "vllm-overprov",
+          "operation": "llm_request",
+          "limit": 40
+        }
+      ],
+      "transformations": [
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Duration",
+                "desc": true
+              }
+            ]
+          }
+        },
+        {
+          "id": "limit",
+          "options": {
+            "limitField": 6
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Trace name": true,
+              "Start time": true
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "left"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Duration"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "unit",
+                "value": "\u00b5s"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 1000
+                    },
+                    {
+                      "color": "red",
+                      "value": 3000
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
+    {
+      "id": 10,
+      "type": "row",
+      "title": "Details (for Q&A)",
+      "collapsed": true,
+      "gridPos": {
+        "x": 0,
+        "y": 26,
+        "w": 24,
+        "h": 1
+      },
+      "panels": [
+        {
+          "id": 11,
+          "type": "timeseries",
+          "title": "SM active ratio (real compute occupancy) \u00b7 DCGM",
+          "description": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 24,
+            "w": 8,
+            "h": 8
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit",
+              "custom": {
+                "lineWidth": 3,
+                "fillOpacity": 10,
+                "showPoints": "never",
+                "spanNulls": true
+              },
+              "min": 0,
+              "max": 1
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": ".*constrained.*"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "red"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": ".*overprov.*"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "blue"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "tooltip": {
+              "mode": "multi"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "refId": "A",
+              "expr": "DCGM_FI_PROF_SM_ACTIVE{exported_pod=~\"$pod\"}",
+              "legendFormat": "{{exported_pod}}"
+            }
+          ]
+        },
+        {
+          "id": 12,
+          "type": "timeseries",
+          "title": "GPU utilisation % (coarse, misleading) \u00b7 DCGM",
+          "description": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "x": 8,
+            "y": 24,
+            "w": 8,
+            "h": 8
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "custom": {
+                "lineWidth": 3,
+                "fillOpacity": 10,
+                "showPoints": "never",
+                "spanNulls": true
+              },
+              "min": 0,
+              "max": 100
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": ".*constrained.*"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "red"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": ".*overprov.*"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "blue"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "tooltip": {
+              "mode": "multi"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "refId": "A",
+              "expr": "DCGM_FI_DEV_GPU_UTIL{exported_pod=~\"$pod\"}",
+              "legendFormat": "{{exported_pod}}"
+            }
+          ]
+        },
+        {
+          "id": 13,
+          "type": "timeseries",
+          "title": "Generation tokens/s \u00b7 from the log",
+          "description": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "x": 16,
+            "y": 24,
+            "w": 8,
+            "h": 8
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "custom": {
+                "lineWidth": 3,
+                "fillOpacity": 10,
+                "showPoints": "never",
+                "spanNulls": true
+              },
+              "min": 0
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": ".*constrained.*"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "red"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": ".*overprov.*"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "blue"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "tooltip": {
+              "mode": "multi"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "refId": "A",
+              "expr": "vllm_log_gen_tokens_per_s{pod_name=~\"$pod\"}",
+              "legendFormat": "{{pod_name}}"
+            }
+          ]
+        },
+        {
+          "id": 14,
+          "type": "timeseries",
+          "title": "Waiting / running / preemptions \u00b7 from the log",
+          "description": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 32,
+            "w": 8,
+            "h": 8
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "custom": {
+                "lineWidth": 3,
+                "fillOpacity": 10,
+                "showPoints": "never",
+                "spanNulls": true
+              },
+              "min": 0
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": ".*constrained.*"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "red"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": ".*overprov.*"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "blue"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "tooltip": {
+              "mode": "multi"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "refId": "A",
+              "expr": "vllm_log_waiting_reqs{pod_name=~\"$pod\"}",
+              "legendFormat": "waiting {{pod_name}}"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "refId": "B",
+              "expr": "vllm_log_running_reqs{pod_name=~\"$pod\"}",
+              "legendFormat": "running {{pod_name}}"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "refId": "C",
+              "expr": "vllm_log_preemptions_total{pod_name=~\"$pod\"}",
+              "legendFormat": "preempted {{pod_name}}"
+            }
+          ]
+        },
+        {
+          "id": 15,
+          "type": "timeseries",
+          "title": "Cross-check: KV cache % \u00b7 native vLLM /metrics",
+          "description": "vLLM exposes this itself; many servers do not, which is why the log path exists.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "x": 8,
+            "y": 32,
+            "w": 8,
+            "h": 8
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "custom": {
+                "lineWidth": 3,
+                "fillOpacity": 10,
+                "showPoints": "never",
+                "spanNulls": true
+              },
+              "min": 0,
+              "max": 100
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": ".*constrained.*"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "red"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": ".*overprov.*"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "blue"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "tooltip": {
+              "mode": "multi"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "refId": "A",
+              "expr": "vllm:kv_cache_usage_perc{pod=~\"$pod\"} * 100",
+              "legendFormat": "{{pod}}"
+            }
+          ]
+        },
+        {
+          "id": 16,
+          "type": "timeseries",
+          "title": "Cross-check: tokens/s \u00b7 native vLLM /metrics",
+          "description": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "x": 16,
+            "y": 32,
+            "w": 8,
+            "h": 8
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "custom": {
+                "lineWidth": 3,
+                "fillOpacity": 10,
+                "showPoints": "never",
+                "spanNulls": true
+              },
+              "min": 0
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": ".*constrained.*"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "red"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": ".*overprov.*"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "blue"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "tooltip": {
+              "mode": "multi"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "refId": "A",
+              "expr": "rate(vllm:generation_tokens_total{pod=~\"$pod\"}[1m])",
+              "legendFormat": "{{pod}}"
+            }
+          ]
+        }
       ]
-    },
-    {
-      "type": "timeseries",
-      "title": "Generation throughput (tokens/s) per pod · parsed from vLLM log line",
-      "gridPos": {"h": 7, "w": 8, "x": 16, "y": 9},
-      "fieldConfig": {"defaults": {"unit": "none", "min": 0}},
-      "targets": [
-        {"expr": "vllm_log_gen_tokens_per_s{pod_name=~\"$pod\"}", "legendFormat": "{{pod_name}}"}
-      ]
-    },
-    {
-      "type": "row", "title": "3. Cross-check: native vLLM /metrics (vLLM exposes these itself; many servers do not)",
-      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 16}, "collapsed": false, "panels": []
-    },
-    {
-      "type": "timeseries",
-      "title": "Request queue time p95 · vLLM /metrics",
-      "description": "histogram_quantile over vllm:request_queue_time_seconds. The EARLIEST saturation signal: queue time rises before 'waiting' is visibly non-zero (Elastic, 2025). Queue time first, waiting confirms.",
-      "gridPos": {"h": 7, "w": 8, "x": 0, "y": 17},
-      "fieldConfig": {"defaults": {"unit": "s", "min": 0}},
-      "targets": [
-        {"expr": "histogram_quantile(0.95, sum by (le, pod) (rate(vllm:request_queue_time_seconds_bucket{pod=~\"$pod\"}[1m])))", "legendFormat": "p95 {{pod}}"}
-      ]
-    },
-    {
-      "type": "timeseries",
-      "title": "KV cache usage % and requests waiting · vLLM /metrics",
-      "description": "Same numbers as row 2, scraped from vLLM's own Prometheus endpoint. They should agree. If your server does not expose them, row 2 is how you get them anyway.",
-      "gridPos": {"h": 7, "w": 8, "x": 8, "y": 17},
-      "targets": [
-        {"expr": "vllm:kv_cache_usage_perc{pod=~\"$pod\"} * 100 or vllm:gpu_cache_usage_perc{pod=~\"$pod\"} * 100", "legendFormat": "kv% {{pod}}"},
-        {"expr": "vllm:num_requests_waiting{pod=~\"$pod\"}", "legendFormat": "waiting {{pod}}"}
-      ]
-    },
-    {
-      "type": "timeseries",
-      "title": "Generation throughput (tokens/s) · vLLM /metrics",
-      "gridPos": {"h": 7, "w": 8, "x": 16, "y": 17},
-      "targets": [
-        {"expr": "rate(vllm:generation_tokens_total{pod=~\"$pod\"}[1m])", "legendFormat": "{{pod}}"}
-      ]
-    },
-    {
-      "type": "row", "title": "4. Traces (join on the same pod name)",
-      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 24}, "collapsed": false, "panels": []
-    },
-    {
-      "type": "text",
-      "title": "Traces",
-      "gridPos": {"h": 4, "w": 24, "x": 0, "y": 25},
-      "options": {"mode": "markdown",
-        "content": "Spans carry `k8s.pod.name` (OTel k8sattributes). Open Jaeger, filter service `vllm-constrained`, sort by duration: the slow spans sit exactly where row 2 shows KV cache at 100% and waiting > 0 for the same pod, while row 1 shows nothing new."}
     }
   ]
 }

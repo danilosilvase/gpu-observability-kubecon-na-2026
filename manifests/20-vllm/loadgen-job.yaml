@@ -1,70 +1,88 @@
-# Load generator for the live demo. Two profiles run side by side for DEMO_SECONDS
-# (default 720 s = 12 min) so the charts stay live from set-up through Q&A:
+# Demo load + hop 1 of the trace.
+#   steady   -> vllm-overprov    : 16 short requests at a time (the healthy control)
+#   saturate -> vllm-constrained : 192 long requests at a time, unique prefix (defeats prefix caching),
+#                                  ignore_eos -> KV cache hits 100%, requests queue, DCGM memory stays flat.
+# Every request is a client span ("chat request") whose traceparent header vLLM continues,
+# so each trace has two hops: client pod -> vLLM pod, both stamped with k8s.pod.name by the Collector.
+# On start it drops a "load hits" annotation on the Grafana dashboard.
 #
-#   steady    -> vllm-overprov    : 16 concurrent short requests, the healthy control
-#   saturate  -> vllm-constrained : 192 concurrent long requests, each with a UNIQUE prefix
-#                                   (otherwise vLLM prefix caching shares the KV blocks and
-#                                   the cache never fills) and ignore_eos so every request
-#                                   holds ~960 KV tokens -> KV cache hits 100%, Waiting > 0,
-#                                   preemptions appear, latency climbs, DCGM FB_USED does not move.
-#
-# Uses only the Python stdlib (no pip, no egress needed). Internal ClusterIP targets only.
-#
-#   kubectl apply  -f manifests/20-vllm/loadgen-job.yaml
-#   kubectl delete -f manifests/20-vllm/loadgen-job.yaml   # stop / reset
+#   kubectl -n inference delete job vllm-loadgen --ignore-not-found && kubectl apply -f manifests/20-vllm/loadgen-job.yaml
 apiVersion: batch/v1
 kind: Job
-metadata:
-  name: vllm-loadgen
-  namespace: inference
+metadata: { name: vllm-loadgen, namespace: inference }
 spec:
-  parallelism: 1
-  completions: 1
   backoffLimit: 0
   activeDeadlineSeconds: 900
   template:
-    metadata:
-      labels: { app: vllm-loadgen }
+    metadata: { labels: { app: vllm-loadgen } }
     spec:
       restartPolicy: Never
       containers:
         - name: loadgen
           image: python:3.12-slim
           env:
-            - { name: DEMO_SECONDS,      value: "720" }
-            - { name: STEADY_CONC,       value: "16" }
-            - { name: SATURATE_CONC,     value: "192" }
-            - { name: STEADY_URL,        value: "http://vllm-overprov.inference:8000/v1/completions" }
-            - { name: SATURATE_URL,      value: "http://vllm-constrained.inference:8000/v1/completions" }
-          command: ["python", "-u", "-c"]
+            - { name: DEMO_SECONDS,  value: "720" }
+            - { name: STEADY_CONC,   value: "16" }
+            - { name: SATURATE_CONC, value: "192" }
+            - { name: STEADY_URL,    value: "http://vllm-overprov.inference:8000/v1/completions" }
+            - { name: SATURATE_URL,  value: "http://vllm-constrained.inference:8000/v1/completions" }
+            - { name: OTEL_SERVICE_NAME,           value: "chat-client" }
+            - { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "http://otel-collector.observability:4318" }
+            - { name: GRAFANA_URL,  value: "http://kube-prometheus-stack-grafana.observability" }
+            - { name: GRAFANA_AUTH, value: "admin:gpu-obs-demo" }   # demo default, see terraform/platform.tf
+          command: ["sh", "-c"]
           args:
             - |
-              import os, time, json, threading, uuid, urllib.request, urllib.error
+              pip install -q --no-cache-dir --disable-pip-version-check --root-user-action=ignore \
+                opentelemetry-sdk==1.40.0 opentelemetry-exporter-otlp-proto-http==1.40.0 && python -u - <<'PY'
+              import os, time, json, threading, uuid, base64, urllib.request
+              from opentelemetry import trace, propagate
+              from opentelemetry.sdk.trace import TracerProvider
+              from opentelemetry.sdk.trace.export import BatchSpanProcessor
+              from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+
+              provider = TracerProvider()            # service.name comes from OTEL_SERVICE_NAME
+              provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(), max_queue_size=20000))
+              trace.set_tracer_provider(provider)
+              tracer = trace.get_tracer("loadgen")
+
               DEADLINE = time.time() + int(os.environ["DEMO_SECONDS"])
-              SHORT = "Explain GPU observability in one paragraph. " * 8      # ~70 prompt tokens
-              LONG  = "Explain GPU observability for Kubernetes platform teams in detail. " * 40  # ~570 prompt tokens incl. uuid; +384 gen must stay < max-model-len 1024
-              def fire(url, prompt, max_tokens, ignore_eos):
-                  prompt = f"Request {uuid.uuid4().hex}. " + prompt   # defeat prefix caching
-                  body = json.dumps({"model": "facebook/opt-125m", "prompt": prompt,
-                                     "max_tokens": max_tokens, "ignore_eos": ignore_eos}).encode()
-                  req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"})
-                  try:
-                      urllib.request.urlopen(req, timeout=120).read()
-                  except urllib.error.HTTPError as e:
-                      print(f"{url.split('//')[1].split('.')[0]} HTTP {e.code}: {e.read()[:300]}", flush=True)
-                  except Exception as e:
-                      print(f"{url.split('//')[1].split('.')[0]} error: {e}", flush=True)
-              def worker(name, url, prompt, max_tokens, ignore_eos):
-                  n = 0
+              SHORT = "Explain GPU observability in one paragraph. " * 8
+              LONG  = "Explain GPU observability for Kubernetes platform teams in detail. " * 40  # +384 gen < max-model-len 1024
+
+              def fire(target, url, prompt, max_tokens, ignore_eos):
+                  with tracer.start_as_current_span("chat request", kind=trace.SpanKind.CLIENT,
+                                                    attributes={"llm.target": target}) as span:
+                      headers = {"Content-Type": "application/json"}
+                      propagate.inject(headers)              # traceparent -> vLLM continues the same trace
+                      body = json.dumps({"model": "facebook/opt-125m",
+                                         "prompt": f"Request {uuid.uuid4().hex}. " + prompt,
+                                         "max_tokens": max_tokens, "ignore_eos": ignore_eos}).encode()
+                      try:
+                          urllib.request.urlopen(urllib.request.Request(url, body, headers), timeout=120).read()
+                      except Exception as e:
+                          span.set_status(trace.Status(trace.StatusCode.ERROR, str(e)[:200]))
+
+              def worker(target, url, prompt, max_tokens, ignore_eos):
                   while time.time() < DEADLINE:
-                      fire(url, prompt, max_tokens, ignore_eos); n += 1
-                  print(f"{name} done, {n} requests", flush=True)
-              threads = []
-              for i in range(int(os.environ["STEADY_CONC"])):
-                  threads.append(threading.Thread(target=worker, args=("steady", os.environ["STEADY_URL"], SHORT, 64, False)))
-              for i in range(int(os.environ["SATURATE_CONC"])):
-                  threads.append(threading.Thread(target=worker, args=("saturate", os.environ["SATURATE_URL"], LONG, 384, True)))
-              print(f"starting {len(threads)} workers for {os.environ['DEMO_SECONDS']}s", flush=True)
+                      fire(target, url, prompt, max_tokens, ignore_eos)
+
+              def annotate(text):
+                  auth = base64.b64encode(os.environ["GRAFANA_AUTH"].encode()).decode()
+                  req = urllib.request.Request(os.environ["GRAFANA_URL"] + "/api/annotations",
+                        json.dumps({"tags": ["load"], "text": text}).encode(),
+                        {"Content-Type": "application/json", "Authorization": "Basic " + auth})
+                  try: urllib.request.urlopen(req, timeout=5); print("annotation:", text, flush=True)
+                  except Exception as e: print("annotation failed:", e, flush=True)
+
+              threads  = [threading.Thread(target=worker, args=("vllm-overprov", os.environ["STEADY_URL"], SHORT, 64, False))
+                          for _ in range(int(os.environ["STEADY_CONC"]))]
+              threads += [threading.Thread(target=worker, args=("vllm-constrained", os.environ["SATURATE_URL"], LONG, 384, True))
+                          for _ in range(int(os.environ["SATURATE_CONC"]))]
+              annotate("load hits")
+              print(f"{len(threads)} workers for {os.environ['DEMO_SECONDS']}s", flush=True)
               for t in threads: t.start()
               for t in threads: t.join()
+              provider.shutdown()
               print("loadgen finished", flush=True)
+              PY

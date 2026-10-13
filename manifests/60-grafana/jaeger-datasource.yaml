@@ -1,0 +1,31 @@
+# Jaeger as a Grafana datasource. The Grafana sidecar loads any ConfigMap labelled grafana_datasource=1.
+# tracesToMetrics = the trace-to-GPU join: click a span, Grafana opens that pod's GPU memory and KV cache.
+# The join key is the pod name: OTel k8sattributes puts it on the span as k8s.pod.name.
+# $$ = a literal $ (Grafana provisioning expands $VAR as environment variables).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jaeger-datasource
+  namespace: observability
+  labels: { grafana_datasource: "1" }
+data:
+  jaeger.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Jaeger
+        uid: jaeger
+        type: jaeger
+        access: proxy
+        url: http://jaeger-ui.observability:16686
+        jsonData:
+          tracesToMetrics:
+            datasourceUid: prometheus
+            spanStartTimeShift: "-5m"
+            spanEndTimeShift: "5m"
+            tags:
+              - { key: k8s.pod.name, value: exported_pod }   # span attribute -> DCGM label
+            queries:
+              - name: "GPU memory (DCGM) for this pod"
+                query: 'DCGM_FI_DEV_FB_USED{$$__tags}'
+              - name: "KV cache % (Fluent Bit) for this pod"
+                query: 'vllm_log_kv_cache_usage_pct{pod_name="$${__span.tags["k8s.pod.name"]}"}'

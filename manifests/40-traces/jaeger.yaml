@@ -10,7 +10,11 @@ spec:
       containers:
         - name: jaeger
           image: jaegertracing/all-in-one:1.60
-          env: [ { name: COLLECTOR_OTLP_ENABLED, value: "true" } ]
+          env:
+            - { name: COLLECTOR_OTLP_ENABLED, value: "true" }
+            # In-memory store is searched linearly: cap it so dashboard trace tables answer in < 1 s.
+            # 10k traces = the last few minutes of demo load, which is all the stage needs.
+            - { name: MEMORY_MAX_TRACES, value: "10000" }
           ports: [ { containerPort: 4317 }, { containerPort: 16686 } ]
 ---
 apiVersion: v1

@@ -44,25 +44,29 @@ resource "kubernetes_config_map_v1" "dashboard" {
     namespace = "observability"
     labels    = { grafana_dashboard = "1" }
   }
-  data = { "gpu-inference-dashboard.json" = file("${path.module}/k8s/gpu-inference-dashboard.json") }
+  data = { "gpu-inference-dashboard.json" = file("${local.m}/60-grafana/gpu-inference-dashboard.json") }
   depends_on = [helm_release.kps]
 }
 
 ############################################
 # Workload manifests via kubectl provider
 ############################################
-data "kubectl_file_documents" "namespaces" { content = file("${path.module}/k8s/00-namespaces.yaml") }
-data "kubectl_file_documents" "nodepool"   { content = file("${path.module}/k8s/10-nodepool-gpu.yaml") }
+# Single source of truth: the same plain YAML in manifests/ that deploy.sh applies.
+locals { m = "${path.module}/../manifests" }
+
+data "kubectl_file_documents" "namespaces" { content = file("${local.m}/00-cluster/namespaces.yaml") }
+data "kubectl_file_documents" "nodepool"   { content = file("${local.m}/00-cluster/nodepool-gpu.yaml") }
 data "kubectl_file_documents" "workloads" {
   content = join("\n---\n", [
-    file("${path.module}/k8s/20-dcgm.yaml"),
-    file("${path.module}/k8s/30-vllm.yaml"),
-    file("${path.module}/k8s/40-fluentbit.yaml"),
-    file("${path.module}/k8s/50-otel.yaml"),
-    file("${path.module}/k8s/55-jaeger.yaml"),
+    file("${local.m}/10-gpu-metrics/dcgm-exporter.yaml"),
+    file("${local.m}/20-vllm/vllm.yaml"),
+    file("${local.m}/30-logs/fluent-bit.yaml"),
+    file("${local.m}/40-traces/otel-collector.yaml"),
+    file("${local.m}/40-traces/jaeger.yaml"),
   ])
 }
-data "kubectl_file_documents" "servicemonitors" { content = file("${path.module}/k8s/60-servicemonitors.yaml") }
+data "kubectl_file_documents" "servicemonitors" { content = file("${local.m}/50-prometheus/servicemonitors.yaml") }
+data "kubectl_file_documents" "grafana_ds"      { content = file("${local.m}/60-grafana/jaeger-datasource.yaml") }
 
 resource "kubectl_manifest" "namespaces" {
   for_each          = data.kubectl_file_documents.namespaces.manifests
@@ -90,4 +94,13 @@ resource "kubectl_manifest" "servicemonitors" {
   yaml_body         = each.value
   server_side_apply = true
   depends_on        = [helm_release.kps, kubectl_manifest.workloads]
+}
+
+# Jaeger datasource for Grafana (sidecar auto-loads ConfigMaps labelled grafana_datasource=1).
+# Carries the trace -> GPU metrics links, so a slow span opens that pod's DCGM and KV cache.
+resource "kubectl_manifest" "grafana_ds" {
+  for_each          = data.kubectl_file_documents.grafana_ds.manifests
+  yaml_body         = each.value
+  server_side_apply = true
+  depends_on        = [helm_release.kps]
 }

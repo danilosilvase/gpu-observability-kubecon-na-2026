@@ -12,12 +12,11 @@ one Grafana query.
 
 | Path | What |
 |------|------|
-| `deck/kubecon-na-2026-v3.pptx` | The slides (v3, Oct 2026) on the CNCF branded template, with speaker notes. Built by `deck/pptx/build_deck.py`. |
-| `deck/kubecon-na-2026.html` | v2 HTML deck, superseded, kept for reference. |
-| `STORYLINE-v3.md` | Why v3: the serving log as telemetry, not the plumbing. Slide map and rig changes. |
-| `terraform/` | One-apply reproduction on EKS Auto Mode: VPC, cluster, GPU NodePool, kube-prometheus-stack, dcgm-exporter, two vLLM deployments, Fluent Bit, OTel Collector, Jaeger, Grafana dashboard. |
-| `manifests/` | The same Kubernetes objects as plain YAML, for clusters you already have. |
-| `DEMO-RUNBOOK.md` | Timing, commands and fallbacks for the live demo. |
+| `demo/` | Stage scripts: `start.sh`, `check.sh`, `load.sh`, `trace.sh`, `cardinality.sh`, `stop.sh` |
+| `manifests/` | The deployable configs, one file per component. Single source: Terraform applies these same files. |
+| `terraform/` | One-apply rig on EKS Auto Mode: VPC, cluster, GPU NodePool, kube-prometheus-stack, then `manifests/`. |
+| `DEMO-RUNBOOK.md` | One page: commands, five beats, measured numbers, fallbacks. |
+| `deck/` | Slides (`kubecon-na-2026-v4.pptx`) and their build scripts. |
 
 ## Quick start
 
@@ -30,15 +29,16 @@ printf 'aws_profile = "%s"\nadmin_cidrs = ["%s/32"]\n' "$AWS_PROFILE" "$(curl -s
 terraform init
 terraform apply -target=module.eks -auto-approve
 terraform apply -auto-approve
-./validate.sh                            # expect 12 passed / 0 failed
+./validate.sh                            # expect 14 passed / 0 failed
+../demo/start.sh                         # tunnels + load + dashboard
 ```
 
 Access:
 
 ```bash
 aws eks update-kubeconfig --name gpu-obs-demo --region eu-central-1
-kubectl -n observability port-forward svc/kube-prometheus-stack-grafana 3000:80   # admin / gpu-obs-demo
-kubectl -n observability port-forward svc/jaeger-ui 16686:16686
+demo/start.sh    # Grafana on http://localhost:3000 (admin / gpu-obs-demo), Jaeger on :16686
+demo/check.sh    # 7 OK, 0 FAIL
 ```
 
 Two g5/g6 xlarge nodes (NVIDIA A10G or L4, one GPU each) cost roughly USD 2.4/hour. The GPU NodePool has
@@ -57,8 +57,12 @@ Two g5/g6 xlarge nodes (NVIDIA A10G or L4, one GPU each) cost roughly USD 2.4/ho
   if the cluster is reachable by anyone but you.
 - Versions: vLLM v0.30.0 (OTel tracing needs >= 0.10.2), Fluent Bit 5.1.3, dcgm-exporter 4.8.4.
 - vLLM exposes KV cache %, waiting and queue time natively on `/metrics`. The Fluent Bit Lua +
-  `log_to_metrics` path (row 2 of the dashboard) demonstrates the technique for servers that do not;
-  row 3 cross-checks it against the native numbers.
+  `log_to_metrics` path (panel 2) demonstrates the technique for servers that do not; the collapsed
+  "Details" row cross-checks it against the native numbers.
+- Traces have two hops: the loadgen sends a client span and a `traceparent` header, vLLM continues it.
+  In Grafana, the chain icon on any span opens that pod's GPU memory and KV cache (`tracesToMetrics`).
+- Dashboard JSON is generated: edit `manifests/60-grafana/build_dashboard.py`, then
+  `python3 manifests/60-grafana/build_dashboard.py manifests/60-grafana/gpu-inference-dashboard.json`.
 
 This talk builds on an internal AWS GenAI observability session; credit to the
 original authors.

@@ -1,33 +1,29 @@
-# The "what broke" slide — reproduce the cardinality explosion on purpose
+# What broke: cardinality from per-pod GPU metrics
 
-## 1. Baseline: measure series count
-```promql
-count({__name__=~"DCGM_.*"})
-```
-Note the number with the cardinality-safe config (ENABLE_POD_LABELS=false).
+**TL;DR:** pod name on a GPU metric = one new set of series per pod restart. Keep the pod name (it is the join key), drop everything else that churns.
 
-## 2. Break it
-Edit `10-gpu-metrics/dcgm-exporter-daemonset.yaml`:
-```yaml
-- name: DCGM_EXPORTER_KUBERNETES_ENABLE_POD_LABELS
-  value: "true"          # <-- now every arbitrary pod label becomes a metric label
-```
-Roll the DaemonSet, generate pod churn (scale vLLM up/down a few times):
-```bash
-kubectl -n inference scale deploy/vllm-opt125m --replicas=4
-kubectl -n inference scale deploy/vllm-opt125m --replicas=2
-```
-Re-run the count PromQL. Each GPU series now multiplies by the set of pod
-labels x pod generations. Screenshot the jump — that's the slide.
+## Measured on the rig (Oct 13, 2 L4 GPUs, 7 counters)
 
-## 3. Fix
-Two levers:
-- `ENABLE_POD_LABELS=false` (what we ship), OR
-- allow-list only safe labels:
-  `DCGM_EXPORTER_KUBERNETES_POD_LABEL_ALLOWLIST_REGEX="app|model"`
-Keep base device telemetry intact; drop only the churny labels.
+| | GPU series |
+|--|--|
+| Right now | **14** (7 counters x 2 GPUs) |
+| Last hour, after 3 rollouts | **56** (8 pod names seen) |
 
-## 4. Talk point
-Per-pod GPU attribution is valuable but the pod identity you join on
-(pod_name/namespace from `--kubernetes=true`) is BOUNDED. Arbitrary pod
-*labels* are UNBOUNDED — that's the trap.
+Same two GPUs, 4x the series. Prometheus keeps every old series until retention ends.
+Reproduce: `kubectl -n inference rollout restart deploy/vllm-constrained deploy/vllm-overprov` a few times, then `demo/cardinality.sh`.
+
+## Why it explodes at scale
+
+series = counters x GPUs x pod names seen (in retention) x extra label values.
+Pod labels (`DCGM_EXPORTER_KUBERNETES_ENABLE_POD_LABELS=true`) add every label on the pod.
+One churny label (a version, a run ID, a commit hash) multiplies the whole thing again.
+
+## The fix we ship
+
+| Lever | Setting |
+|--|--|
+| Keep the join key only | `--kubernetes=true` (adds pod, namespace, container) |
+| No arbitrary pod labels | `DCGM_EXPORTER_KUBERNETES_ENABLE_POD_LABELS=false` |
+| Need a few labels? Allow-list them | `DCGM_EXPORTER_KUBERNETES_POD_LABEL_ALLOWLIST_REGEX="app,model"` (needs pod labels on, plus RBAC to read pods) |
+| Few counters | 7 in `counters.csv`, not the default ~40 |
+| Short retention for per-pod data | `retention: 6h` on this rig |

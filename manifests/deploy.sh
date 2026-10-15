@@ -12,7 +12,7 @@ kubectl apply -f 40-traces/                        # signal 3: OTel Collector + 
 kubectl apply -f 50-prometheus/servicemonitors.yaml
 kubectl apply -f 60-grafana/jaeger-datasource.yaml # trace -> GPU links
 kubectl -n observability create configmap gpu-inference-dashboard \
-  --from-file=60-grafana/gpu-inference-dashboard.json --dry-run=client -o yaml \
+  --from-file=60-grafana/gpu-inference-dashboard.json --from-file=60-grafana/gpu-inference-deep-dive.json --dry-run=client -o yaml \
   | kubectl label --local -f - grafana_dashboard=1 -o yaml | kubectl -n observability apply -f -
 
 kubectl -n inference rollout status deploy/vllm-constrained --timeout=900s

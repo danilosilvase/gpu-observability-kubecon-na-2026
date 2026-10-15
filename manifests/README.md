@@ -8,7 +8,8 @@
 | 2 | Serving logs -> metrics | Fluent Bit + Lua + `log_to_metrics` | `30-logs/fluent-bit.yaml` | `pod_name` |
 | 3 | Traces, 2 hops | OTel Collector `k8sattributes` -> Jaeger | `40-traces/otel-collector.yaml` | `k8s.pod.name` |
 | - | Trace -> GPU links | Grafana Jaeger datasource | `60-grafana/jaeger-datasource.yaml` | maps `k8s.pod.name` |
-| - | Dashboard | Grafana | `60-grafana/gpu-inference-dashboard.json` | `$pod` |
+| - | Dashboard (stage) | Grafana | `60-grafana/gpu-inference-dashboard.json` | `$pod` |
+| - | Dashboard (deep dive, Q&A) | Grafana | `60-grafana/gpu-inference-deep-dive.json` | `$pod` |
 
 Workload: `20-vllm/vllm.yaml` (two vLLM pods, 15% vs 90% GPU memory) and
 `20-vllm/loadgen-job.yaml` (load + client span, hop 1 of each trace).

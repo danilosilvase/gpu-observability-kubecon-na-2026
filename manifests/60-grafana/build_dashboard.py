@@ -1,3 +1,10 @@
+"""Builds the two Grafana dashboards from one place.
+
+  stage  (uid gpu-inference-obs):  what the audience sees. One question, 2 pods x 3 big numbers, one trace table.
+  deep   (uid gpu-inference-deep): every panel, for Q&A.
+
+Usage: python3 build_dashboard.py gpu-inference-dashboard.json gpu-inference-deep-dive.json
+"""
 import json, sys
 P = {"type": "prometheus", "uid": "prometheus"}
 J = {"type": "jaeger", "uid": "jaeger"}
@@ -53,35 +60,65 @@ def traces(pid, title, service, x, y, w, h):
                                                               {"color": "red", "value": 3000000}]}}]}]},
             "options": {"showHeader": True, "cellHeight": "sm"}}
 
-panels = []
-# Row 0: the verdict, readable from the back of the room
-panels.append({
-    "id": 1, "type": "stat", "title": "Verdict per pod (peak KV cache, last 5 min, parsed from the serving log)",
-    "description": "KV cache is the real 'GPU full' for an LLM server. Over 90% = memory-constrained, under 30% = over-provisioned.",
-    "datasource": P, "gridPos": {"x": 0, "y": 0, "w": 24, "h": 5},
-    "targets": [{"datasource": P, "refId": "A", "legendFormat": "{{pod_name}}",
-                 "expr": 'max by (pod_name) (max_over_time(vllm_log_kv_cache_usage_pct{pod_name=~"$pod"}[5m]))' + LIVE}],
-    "fieldConfig": {"defaults": {"unit": "percent", "decimals": 0, "noValue": "No load yet",
+
+# Is the pod getting traffic? (vLLM's own request counter, renamed to the log metric's label)
+TRAFFIC = ' and on(pod_name) label_replace(sum by (pod) (rate(vllm:request_success_total{pod=~"$pod"}[3m])) > 0, "pod_name", "$1", "pod", "(.*)")'
+KV_PEAK = 'max by (pod_name) (max_over_time(vllm_log_kv_cache_usage_pct{pod_name=~"$pod"}[3m]))' + LIVE
+
+def verdict(pid, title, y, h=5):
+    """Peak KV cache while the pod has traffic. No traffic = -1 = OK, so idle pods read OK, not over-provisioned."""
+    return {
+    "id": pid, "type": "stat", "title": title,
+    "description": "KV cache is the real 'GPU full' for an LLM server. With traffic: over 90% = memory-constrained, under 30% = over-provisioned. No traffic = OK.",
+    "datasource": P, "gridPos": {"x": 0, "y": y, "w": 24, "h": h}, "interval": "5s",
+    "targets": [{"datasource": P, "refId": r, "legendFormat": "{{pod_name}}",
+                 "expr": f'({KV_PEAK}{TRAFFIC}) or (({KV_PEAK}) * 0 - 1)'.replace('pod_name=~"$pod"', f'pod_name=~"$pod", pod_name=~"{dep}.*"')}
+                for r, dep in (("A", "vllm-constrained"), ("B", "vllm-overprov"))],
+    "fieldConfig": {"defaults": {"unit": "percent", "decimals": 0, "noValue": "Waiting for the first log line",
         "mappings": [
-            {"type": "range", "options": {"from": 90, "to": 1000, "result": {"text": "MEMORY-CONSTRAINED", "color": "red", "index": 0}}},
-            {"type": "range", "options": {"from": 30, "to": 90, "result": {"text": "BUSY", "color": "orange", "index": 1}}},
-            {"type": "range", "options": {"from": 0, "to": 30, "result": {"text": "OVER-PROVISIONED", "color": "blue", "index": 2}}}],
+            {"type": "value", "options": {"-1": {"text": "OK", "color": "green", "index": 0}}},
+            {"type": "range", "options": {"from": 90, "to": 1000, "result": {"text": "MEMORY-CONSTRAINED", "color": "red", "index": 1}}},
+            {"type": "range", "options": {"from": 30, "to": 90, "result": {"text": "BUSY", "color": "orange", "index": 2}}},
+            {"type": "range", "options": {"from": 0, "to": 30, "result": {"text": "OVER-PROVISIONED", "color": "blue", "index": 3}}}],
         "color": {"mode": "fixed", "fixedColor": "text"}}, "overrides": []},
     "options": {"colorMode": "background", "graphMode": "none", "textMode": "value_and_name",
                 "justifyMode": "center", "text": {"titleSize": 30, "valueSize": 52}, "orientation": "vertical", "wideLayout": True,
-                "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": False}}})
+                "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": False}}}
+
+def big(pid, title, desc, expr, legend, x, y, w, h, unit, mx=None, novalue="No traffic", decimals=None, zero_text=None):
+    """A big number per pod, with a sparkline so 'flat' and 'climbing' are visible."""
+    d = {"unit": unit, "noValue": novalue, "min": 0, "color": {"mode": "fixed", "fixedColor": "text"}}
+    if mx is not None: d["max"] = mx
+    if decimals is not None: d["decimals"] = decimals
+    if zero_text: d["mappings"] = [{"type": "value", "options": {"0": {"text": zero_text, "index": 0}}}]
+    return {"id": pid, "type": "stat", "title": title, "description": desc, "datasource": P,
+            "gridPos": {"x": x, "y": y, "w": w, "h": h},
+            "interval": "5s",   # the datasource default step is 30 s: tiles would lag the room by up to 30 s
+            # one query per pod (red first) so every panel lists the pods in the same order
+            "targets": [{"datasource": P, "refId": r, "expr": expr.replace("~\"$pod\"", f"~\"$pod\", {lbl}=~\"{dep}.*\""), "legendFormat": legend}
+                        for r, dep in (("A", "vllm-constrained"), ("B", "vllm-overprov"))
+                        for lbl in [legend.strip("{}")]],
+            "fieldConfig": {"defaults": d, "overrides": colours()},
+            "options": {"colorMode": "value", "graphMode": "area", "textMode": "value_and_name", "justifyMode": "center",
+                        "orientation": "horizontal", "wideLayout": True, "text": {"titleSize": 18, "valueSize": 64},
+                        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": False}}}
+
+# ---------------- deep dive: every panel, for Q&A ----------------
+deep_panels = []
+# Row 0: the verdict, readable from the back of the room
+deep_panels.append(verdict(1, "Verdict per pod (peak KV cache while it has traffic, parsed from the serving log)", 0))
 
 # Row 1: three signals, same pods, same colours
-panels.append(ts(2, "1. GPU memory (DCGM): flat. The pod in trouble uses less",
+deep_panels.append(ts(2, "1. GPU memory (DCGM): flat. The pod in trouble uses less",
     "vLLM reserves its GPU memory at start-up (--gpu-memory-utilization). This counter never moves under load, and the struggling pod looks the healthiest.",
     [{"expr": 'DCGM_FI_DEV_FB_USED{exported_pod=~"$pod"}', "legendFormat": "{{exported_pod}}"}],
     0, 5, 8, 12, "decmbytes", 0, 24576))
-panels.append(ts(3, "2. KV cache % (log line, Fluent Bit + Lua): one pod hits 100%",
+deep_panels.append(ts(3, "2. KV cache % (log line, Fluent Bit + Lua): one pod hits 100%",
     "Parsed from the vLLM stats log line by a 15-line Lua filter, turned into a metric by log_to_metrics.",
     [{"expr": 'vllm_log_kv_cache_usage_pct{pod_name=~"$pod"}' + LIVE, "legendFormat": "{{pod_name}}"}],
     8, 5, 8, 12, "percent", 0, 100,
     [{"color": "transparent", "value": None}, {"color": "red", "value": 90}]))
-panels.append(ts(4, "3. Queue time p95 (vLLM /metrics): requests start waiting",
+deep_panels.append(ts(4, "3. Queue time p95 (vLLM /metrics): requests start waiting",
     "Time a request waits before the GPU picks it up. Rises when the KV cache is full.",
     [{"expr": 'histogram_quantile(0.95, sum by (le, pod) (rate(vllm:request_queue_time_seconds_bucket{pod=~"$pod"}[1m])))',
       "legendFormat": "{{pod}}"}],
@@ -89,10 +126,10 @@ panels.append(ts(4, "3. Queue time p95 (vLLM /metrics): requests start waiting",
     [{"color": "transparent", "value": None}, {"color": "orange", "value": 1}, {"color": "red", "value": 3}], tstyle="dashed"))
 
 # Row 2: traces on the same pods
-panels.append(traces(5, "4. Slowest requests on vllm-constrained (traces, click a Trace ID)", "vllm-constrained", 0, 17, 12, 9))
-panels.append(traces(6, "4. Slowest requests on vllm-overprov (traces, click a Trace ID)", "vllm-overprov", 12, 17, 12, 9))
+deep_panels.append(traces(5, "4. Slowest requests on vllm-constrained (traces, click a Trace ID)", "vllm-constrained", 0, 17, 12, 9))
+deep_panels.append(traces(6, "4. Slowest requests on vllm-overprov (traces, click a Trace ID)", "vllm-overprov", 12, 17, 12, 9))
 
-# Collapsed detail row: off-screen on stage, there for Q&A
+# Detail row: GPU counters, cardinality, log fields and native cross-checks
 detail = [
     {"id": 17, "type": "stat", "title": "What broke: GPU series, same 2 GPUs (live now vs seen in the last hour)",
      "description": "Every new pod name creates a new set of GPU series. Prometheus keeps old ones until retention ends.",
@@ -120,25 +157,52 @@ detail = [
     ts(16, "Cross-check: tokens/s · native vLLM /metrics", "",
        [{"expr": 'rate(vllm:generation_tokens_total{pod=~"$pod"}[1m])', "legendFormat": "{{pod}}"}], 16, 38, 8, 8, "none", 0),
 ]
-panels.append({"id": 10, "type": "row", "title": "Details (for Q&A)", "collapsed": True,
-               "gridPos": {"x": 0, "y": 26, "w": 24, "h": 1}, "panels": detail})
+deep_panels.append({"id": 10, "type": "row", "title": "Details", "collapsed": False,
+               "gridPos": {"x": 0, "y": 26, "w": 24, "h": 1}, "panels": []})
+deep_panels += detail
 
-dash = {
-    "uid": "gpu-inference-obs", "title": "GPU inference: the pod is the join key",
-    "schemaVersion": 39, "refresh": "10s", "time": {"from": "now-15m", "to": "now"},
-    "tags": ["gpu", "inference", "vllm", "dcgm", "fluent-bit", "otel"],
-    "graphTooltip": 1,   # shared crosshair: hover one panel, see the same second on all
-    "annotations": {"list": [
-        {"builtIn": 1, "datasource": {"type": "grafana", "uid": "-- Grafana --"}, "enable": True, "hide": True,
-         "iconColor": "rgba(0, 211, 255, 1)", "name": "Annotations & Alerts", "type": "dashboard"},
-        {"datasource": {"type": "grafana", "uid": "-- Grafana --"}, "enable": True, "iconColor": "orange",
-         "name": "load hits", "target": {"type": "tags", "tags": ["load"], "matchAny": True, "limit": 20}}]},
-    "templating": {"list": [{"name": "pod", "label": "pod", "type": "query", "datasource": P,
-        # vLLM pods Running right now (instant query), so restarted pods drop off every panel.
-        "query": {"query": 'query_result(kube_pod_status_phase{namespace="inference", phase="Running", pod=~"vllm-(constrained|overprov).*"} == 1)', "refId": "pod"},
-        "regex": '/pod="([^"]+)"/',
-        "includeAll": True, "multi": True, "refresh": 2, "current": {"text": "All", "value": "$__all"}}]},
-    "panels": panels,
-}
-json.dump(dash, open(sys.argv[1], "w"), indent=2)
-print("panels:", len(panels))
+
+# ---------------- stage: one question, one screen ----------------
+stage_panels = [
+    verdict(1, "Same model, same GPU. Which pod is in trouble?", 0),
+    big(2, "GPU memory in use  ·  GPU exporter (DCGM)  ·  the number we page on",
+        "vLLM reserves its GPU memory at start-up, so this never moves under load. The pod in trouble even uses less.",
+        'DCGM_FI_DEV_FB_USED{exported_pod=~"$pod"}', "{{exported_pod}}", 0, 5, 8, 12, "decmbytes", decimals=1, novalue="No GPU data"),
+    big(3, "How full the server really is  ·  KV cache %  ·  from its own log line",
+        "The model server's working memory. Read from the vLLM log line by Fluent Bit + a 15-line Lua filter. 100% = full, new requests wait.",
+        'vllm_log_kv_cache_usage_pct{pod_name=~"$pod"}' + LIVE, "{{pod_name}}", 8, 5, 8, 12, "percent", mx=100, decimals=0),
+    big(4, "How long a request takes  ·  average  ·  what the user feels",
+        "End-to-end request time measured by vLLM itself (/metrics): sum / count over the last 2 min. Matches the trace durations below.",
+        # >= 0 drops the NaN (0/0) an idle pod returns, so the tile says "No traffic"
+        '(sum by (pod) (rate(vllm:e2e_request_latency_seconds_sum{pod=~"$pod"}[2m])) / sum by (pod) (rate(vllm:e2e_request_latency_seconds_count{pod=~"$pod"}[2m])) >= 0)'
+        ' or (sum by (pod) (rate(vllm:e2e_request_latency_seconds_count{pod=~"$pod"}[2m])) * 0)', "{{pod}}",
+        16, 5, 8, 12, "s", decimals=1, zero_text="No traffic"),
+    traces(5, "The slowest requests on the red pod (traces)  ·  click one", "vllm-constrained", 0, 17, 24, 9),
+]
+
+def dashboard(uid, title, panels, link_uid, link_title):
+    return {
+        "uid": uid, "title": title,
+        "links": [{"type": "link", "title": link_title, "url": f"/d/{link_uid}", "icon": "dashboard"}],
+        "schemaVersion": 39, "refresh": "5s" if uid == "gpu-inference-obs" else "10s",
+        "time": {"from": "now-5m" if uid == "gpu-inference-obs" else "now-15m", "to": "now"},
+        "tags": ["gpu", "inference", "vllm", "dcgm", "fluent-bit", "otel"],
+        "graphTooltip": 1,   # shared crosshair: hover one panel, see the same second on all
+        "annotations": {"list": [
+            {"builtIn": 1, "datasource": {"type": "grafana", "uid": "-- Grafana --"}, "enable": True, "hide": True,
+             "iconColor": "rgba(0, 211, 255, 1)", "name": "Annotations & Alerts", "type": "dashboard"},
+            {"datasource": {"type": "grafana", "uid": "-- Grafana --"}, "enable": True, "iconColor": "orange",
+             "name": "load hits", "target": {"type": "tags", "tags": ["load"], "matchAny": True, "limit": 20}}]},
+        "templating": {"list": [{"name": "pod", "label": "pod", "type": "query", "datasource": P,
+            # vLLM pods Running right now (instant query), so restarted pods drop off every panel.
+            "query": {"query": 'query_result(kube_pod_status_phase{namespace="inference", phase="Running", pod=~"vllm-(constrained|overprov).*"} == 1)', "refId": "pod"},
+            "regex": '/pod="([^"]+)"/',
+            "includeAll": True, "multi": True, "refresh": 2, "current": {"text": "All", "value": "$__all"}}]},
+        "panels": panels,
+    }
+
+json.dump(dashboard("gpu-inference-obs", "GPU inference: which pod is in trouble?", stage_panels,
+                    "gpu-inference-deep", "Deep dive (all panels)"), open(sys.argv[1], "w"), indent=2)
+json.dump(dashboard("gpu-inference-deep", "GPU inference: deep dive (Q&A)", deep_panels,
+                    "gpu-inference-obs", "Stage dashboard"), open(sys.argv[2], "w"), indent=2)
+print("stage panels:", len(stage_panels), " deep panels:", len(deep_panels))

@@ -44,7 +44,7 @@ chk "prometheus pod up" "kubectl -n observability get pods -l app.kubernetes.io/
 
 echo "=== 7. Grafana up with dashboard ==="
 chk "grafana pod up" "kubectl -n observability get pods -l app.kubernetes.io/name=grafana --no-headers | grep -q Running"
-chk "dashboard configmap present" "kubectl -n observability get cm gpu-inference-dashboard >/dev/null 2>&1"
+chk "dashboard configmap present (stage + deep dive)" "kubectl -n observability get cm gpu-inference-dashboard -o jsonpath={.data} | grep -q gpu-inference-deep-dive.json"
 chk "jaeger datasource configmap present" "kubectl -n observability get cm jaeger-datasource >/dev/null 2>&1"
 
 echo

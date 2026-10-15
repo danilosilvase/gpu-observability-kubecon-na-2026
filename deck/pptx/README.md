@@ -31,3 +31,19 @@ uv run --with python-pptx --with pillow python build_deck_v4.py <branded-templat
 - Technical fixes vs v3: GR_ENGINE_ACTIVE (profiler) is not GPU_UTIL (NVML); --gpu-memory-utilization caps the whole
   pool, not just KV cache; SM_OCCUPANCY is a ratio; MFU/MBU line softened (training-world source).
 - Still open: attribution placeholder on slide 20 ("[original author, AWS]").
+
+## v6 (Oct 15 2026, simpler story)
+
+```bash
+cd deck/pptx
+uv run --with python-pptx --with pillow python build_deck_v6.py <branded-template.pptx> ../kubecon-na-2026-v6.pptx screenshots
+```
+
+- Built from the v4 slides, then reordered: 14 main slides (about 18 min with a 3-min demo), an appendix divider, and the
+  v4 slides that left the main path (prefill/decode, profiler counters, counter table, DCGM per pod, log fields, join row,
+  Auto Mode gotcha, router) as backup for Q&A.
+- New: car park slide (GPU memory = the car park, KV cache = how full it is), demo signpost "which pod is in trouble?",
+  recap = stage dashboard screenshot, three deep dives from the abstract (1 cardinality with measured 14 -> 56,
+  2 the Lua with a real vLLM log line, 3 the OTel Collector + Grafana tracesToMetrics config).
+- `screenshots/v6/`: stage dashboard at saturation, fresh GPU memory panel (red/blue, load line), two-hop trace. Oct 15 2026.
+- Speaker scripts: `speaker_notes_v6.py` for the main path (by final slide position); appendix slides keep `speaker_notes.py`.

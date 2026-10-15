@@ -104,91 +104,89 @@ async function until(fn, ms, label) {
   console.log('timeout waiting for', label); return false;
 }
 const kv = async (re) => Math.max(0, ...(await prom(`vllm_log_kv_cache_usage_pct{pod_name=~"${re}"}`)).map(x => x[1]));
-const queue = async (re) => Math.max(0, ...(await prom(`histogram_quantile(0.95, sum by (le, pod) (rate(vllm:request_queue_time_seconds_bucket{pod=~"${re}"}[1m])))`)).map(x => x[1]).filter(Number.isFinite));
+const reqTime = async (re) => Math.max(0, ...(await prom(`sum by (pod) (rate(vllm:e2e_request_latency_seconds_sum{pod=~"${re}"}[2m])) / sum by (pod) (rate(vllm:e2e_request_latency_seconds_count{pod=~"${re}"}[2m]))`)).map(x => x[1]).filter(Number.isFinite));
 const panel = id => `[data-panelid="${id}"]`;
 const DASH = `${G}/d/gpu-inference-obs?orgId=1&kiosk&from=now-5m&to=now&refresh=5s`;
 
-// ---------- set-up (not recorded) ----------
+// ---------- set-up (not recorded): the rig must be idle, so the demo starts on "OK / OK" ----------
 {
-  const jobs = await new Promise(r => exec('kubectl -n inference get jobs --no-headers 2>/dev/null', (e, o) => r(o.trim())));
-  const kvNow = await prom('vllm_log_kv_cache_usage_pct');
-  const q = await prom('sum(rate(vllm:request_queue_time_seconds_count[2m]))');
-  if (jobs || kvNow.length || (q[0] && q[0][1] > 0)) { console.log('DIRTY: not idle', jobs, kvNow.length, q); process.exit(2); }
+  const running = await new Promise(r => exec('kubectl -n inference get pods -l app=vllm-loadgen --field-selector=status.phase=Running --no-headers 2>/dev/null', (e, o) => r(o.trim())));
+  // 6 min of quiet: the stage dashboard shows the last 5 min, so no old traces or tiles from a previous load
+  const traffic = await prom('sum(increase(vllm:request_success_total[6m])) > 0');
+  const hot = await prom('vllm_log_kv_cache_usage_pct > 5');
+  if (running || traffic.length || hot.length) { console.log('DIRTY: not idle', running, traffic, hot.length); process.exit(2); }
   console.log('idle check OK');
 }
 await p.goto(`${G}/login`);
 await p.fill('input[name="user"]', 'admin'); await p.fill('input[name="password"]', 'gpu-obs-demo');
 await p.click('button[type="submit"]'); await p.waitForURL(u => !u.toString().includes('/login'));
 await p.goto(DASH, { waitUntil: 'load' }); await sleep(8000);
-const gpuMem = Object.fromEntries((await prom('DCGM_FI_DEV_FB_USED{exported_pod=~"vllm-.*"}')).map(([m, v]) => [m.exported_pod.split('-')[1], (v / 1024).toFixed(1)]));
-const series = async () => [(await prom('count({__name__=~"DCGM_.*"})'))[0]?.[1] ?? 0, (await prom('count(count_over_time(DCGM_FI_DEV_FB_USED[1h])) + count(count_over_time(DCGM_FI_DEV_FB_FREE[1h])) + count(count_over_time(DCGM_FI_PROF_SM_ACTIVE[1h])) + count(count_over_time(DCGM_FI_PROF_DRAM_ACTIVE[1h])) + count(count_over_time(DCGM_FI_DEV_POWER_USAGE[1h])) + count(count_over_time(DCGM_FI_DEV_GPU_TEMP[1h])) + count(count_over_time(DCGM_FI_DEV_GPU_UTIL[1h]))'))[0]?.[1] ?? 0];
 
 // ---------- recording ----------
 rec = true; t0 = Date.now(); const cap = capLoop();
 
-// S0 title
+// S0 the question
 await card(`<div style="font-size:30px;color:#ff9830;letter-spacing:2px">LIVE DEMO</div>
-  <div style="font:700 60px/1.2 Inter,Helvetica,Arial;margin:14px 0 30px">Inference is a black box</div>
+  <div style="font:700 64px/1.2 Inter,Helvetica,Arial;margin:14px 0 30px">Which pod is in trouble?</div>
   <div>Two vLLM pods · same model · same GPU (NVIDIA L4)</div>
-  <div><span style="color:#f2495c">red</span>: 15% of GPU memory reserved for the model server
-  &nbsp;·&nbsp; <span style="color:#5794f2">blue</span>: 90%</div>
-  <div style="margin-top:30px;color:#9fa7b3;font-size:28px">GPU metrics: dcgm-exporter · Logs: Fluent Bit + Lua · Traces: OpenTelemetry · Joined by pod name in Grafana</div>`);
-cues.push(`${ts()}  [title card]`);
-await sleep(10000); await card(null); await sleep(800);
+  <div><span style="color:#f2495c">red</span>: 15% of the GPU memory &nbsp;·&nbsp; <span style="color:#5794f2">blue</span>: 90%</div>
+  <div style="margin-top:30px;color:#9fa7b3;font-size:30px">Watch three numbers: GPU memory · how full the car park is (KV cache) · request time</div>`);
+cues.push(`${ts()}  [title card: which pod is in trouble?]`);
+await sleep(9000); await card(null); await sleep(800);
 
 // S1 idle
-await caption('No load yet. Two healthy-looking pods.', 'One dashboard, one row per signal, every panel keyed by pod name');
+await box(panel(1));
+await caption('No traffic yet. Both pods: OK.', 'Same model, same GPU. One of them is about to fall over.');
 await sleep(8000);
-await box(panel(2));
-await caption('1 · GPU memory (DCGM): reserved at start-up, then flat', `red ${gpuMem.constrained ?? '3.5'} GB · blue ${gpuMem.overprov ?? '20.4'} GB. This is the panel most teams page on.`);
-await sleep(10000);
-await box(panel(3), panel(4));
-await caption('2 and 3 · KV cache and queue time: quiet', 'Nothing is waiting. Nothing is full.');
+await box(panel(2), panel(4));
+await caption('Three numbers per pod', 'GPU memory  ·  how full the car park is (KV cache)  ·  how long a request takes');
 await sleep(8000);
 
 // S2 load
 await box(null);
 exec(`kubectl -n inference delete job vllm-loadgen --ignore-not-found --wait=true && kubectl apply -f ${REPO}/manifests/20-vllm/loadgen-job.yaml`, (e, o, er) => console.log('load:', e ? er : 'started'));
-await caption('Load starts', '192 long requests to the red pod · 16 short requests to the blue pod');
-await sleep(12000);
-
-// S3 watch it break
-await box(panel(3));
-await caption('2 · KV cache %, read from the vLLM log line', 'Fluent Bit tails the log · a 15-line Lua filter extracts it · log_to_metrics turns it into a metric per pod');
-await until(async () => (await kv('vllm-constrained.*')) > 90, 240000, 'kv>90');
-await sleep(6000);
-await caption('Red pod: KV cache full. Blue pod: almost empty.', 'KV cache is the real "GPU memory full" for an LLM server');
+await caption('Load starts', 'Lots of long requests to red  ·  a trickle to blue');
 await sleep(9000);
-await box(panel(4));
-await until(async () => (await queue('vllm-constrained.*')) > 2, 150000, 'queue>2');
-await sleep(5000);
-const qr = (await queue('vllm-constrained.*')).toFixed(1), qb = (await queue('vllm-overprov.*')).toFixed(2);
-await caption('3 · Queue time p95 (vLLM /metrics): requests wait', `red ${qr} s before the GPU even starts on them · blue ${qb} s`);
-await sleep(10000);
+
+// S3 the number we page on
 await box(panel(2));
-await caption('1 · GPU memory: still flat', 'DCGM cannot see any of this. The pod in trouble even uses less memory.');
+await caption('GPU memory: the number we page on', 'Flat. Red even looks the healthiest: it uses less.');
 await sleep(10000);
-await until(async () => (await prom('max_over_time(vllm_log_kv_cache_usage_pct{pod_name=~"vllm-constrained.*"}[5m]) > 90')).length > 0, 60000, 'verdict');
-await box(panel(1));
-await caption('The verdict, per pod', 'Same model, same GPU: one memory-constrained, one over-provisioned. Only the log line could tell.');
-await sleep(10000);
-await box(null);
-await caption('Same pod name on every panel', 'dcgm-exporter: exported_pod · Fluent Bit: pod_name · vLLM /metrics: pod');
-await sleep(9000);
 
-// S4 traces
-await box(panel(5), panel(6));
-await caption('4 · Traces: the slowest requests per pod', 'red ~12 s · blue ~0.2 s', 'top');
+// S4 the car park
+await box(panel(3));
+await caption('How full the car park is: KV cache %, from the server\'s own log', 'Fluent Bit reads the vLLM log line, 15 lines of Lua turn it into a number per pod');
+await until(async () => (await kv('vllm-constrained.*')) > 90, 240000, 'kv>90');
+await sleep(4000);
+const kr = Math.round(await kv('vllm-constrained.*')), kb = Math.round(await kv('vllm-overprov.*'));
+await caption(`Red: ${kr}% full. Blue: ${kb}%.`, 'The pod with less memory has run out of room. Nothing on the GPU memory tile moved.');
 await sleep(10000);
+
+// S5 what the user feels
+await box(panel(4));
+await until(async () => (await reqTime('vllm-constrained.*')) > 5, 150000, 'req>5');
+await sleep(3000);
+const rr = (await reqTime('vllm-constrained.*')).toFixed(0), rb = (await reqTime('vllm-overprov.*')).toFixed(2);
+await caption(`Red requests take ${rr} s. Blue: ${rb} s.`, 'Same hardware. New requests wait for a space in the car park.');
+await sleep(10000);
+
+// S6 verdict
+await until(async () => (await prom('max_over_time(vllm_log_kv_cache_usage_pct{pod_name=~"vllm-constrained.*"}[3m]) > 90')).length > 0, 60000, 'verdict');
+await box(panel(1));
+await caption('Red: memory-constrained. Blue: over-provisioned.', 'Only the log line could tell. The GPU exporter said both were fine.');
+await sleep(10000);
+
+// S7 one slow request
+await box(panel(5));
+await caption('The slowest requests on red (traces)', 'About 12 s each. Click one.', 'top');
+await sleep(7000);
 await box(null); await caption('', '');
 const first = p.locator(`${panel(5)} a`).first();
 const tid = ((await first.textContent({ timeout: 10000 }).catch(() => '')) || '').trim();
-let tq = '?', te = '?', pod = '';
+let pod = '';
 try {
   const tr = (await (await fetch(`http://localhost:16686/api/traces/${tid}`)).json()).data[0];
   const sp = tr.spans.find(s => s.operationName === 'llm_request');
-  const tag = k => sp.tags.find(t => t.key === k)?.value;
-  tq = (+tag('gen_ai.latency.time_in_queue')).toFixed(1); te = (+tag('gen_ai.latency.e2e')).toFixed(1);
   pod = tr.processes[sp.processID].tags.find(t => t.key === 'k8s.pod.name')?.value || '';
 } catch (e) { console.log('trace api', e.message); }
 await clickOn(first);
@@ -199,76 +197,49 @@ if (await outline.count()) { await outline.first().click().catch(() => {}); awai
 const rowVllm = p.getByRole('switch', { name: /llm_request/ }).first();
 const rowClient = p.getByRole('switch', { name: /chat request/ }).first();
 await box(rowClient, rowVllm);
-await caption('One request, two hops: client, then vLLM', 'Same trace ID. The client sent a traceparent header; vLLM continued the trace.');
-await sleep(11000);
+await caption('One request, two hops: the client, then vLLM', 'One trace from end to end');
+await sleep(9000);
 await box(null);
 await clickOn(rowVllm); await sleep(1500);
-const sa = p.getByText(/^Span Attributes:?$/).first();
-await clickOn(sa); await sleep(1200);
-const qRow = p.getByText('gen_ai.latency.time_in_queue', { exact: true }).first();
-await qRow.scrollIntoViewIfNeeded().catch(() => {}); await sleep(600);
-await box(qRow.locator('xpath=ancestor::tr[1]'), p.getByText('gen_ai.latency.e2e', { exact: true }).first().locator('xpath=ancestor::tr[1]'));
-await caption('vLLM records its own timings on the span', `This request: ${te} s end to end, ${tq} s of it waiting in the queue before the GPU started`);
-await sleep(12000);
-await box(null);
-await clickOn(sa); await sleep(800);
 const res = p.getByText(/^Resource Attributes:?$/).first();
 await clickOn(res); await sleep(1200);
 const podRow = p.getByText('k8s.pod.name', { exact: true }).first();
 await podRow.scrollIntoViewIfNeeded().catch(() => {}); await sleep(600);
 await box(podRow.locator('xpath=ancestor::tr[1]'));
-await caption('k8s.pod.name: the join key', 'Added to every span by the OTel Collector (k8sattributes processor). The app never knew its pod name.');
-await sleep(12000);
+await caption('The pod name, on the request', 'The OTel Collector added it. The app never knew its pod name.');
+await sleep(10000);
 await rowVllm.scrollIntoViewIfNeeded().catch(() => {});
 
-// S5 the join
+// S8 one click to the cause
 await box(null);
 const chain = rowVllm.locator('xpath=following::button[1]');
 await clickOn(chain); await sleep(1000);
-const kvLink = p.getByRole('link', { name: /KV cache % \(Fluent Bit\) for this pod/ });
-await box(kvLink, p.getByRole('link', { name: /GPU memory \(DCGM\) for this pod/ }));
-await caption('From this span straight to that pod\'s metrics', 'Grafana trace-to-metrics: span tag k8s.pod.name becomes the Prometheus label', 'top');
-await sleep(9000);
+const kvLink = p.getByRole('link', { name: /This pod: how full it was/ });
+await box(kvLink);
+await caption('One click: from this request to that pod', 'Grafana uses the pod name on the span to find the pod\'s metrics', 'top');
+await sleep(7000);
 await box(null); await caption('', '');
 await clickOn(kvLink); await sleep(8000);
 const right = p.locator('[data-testid="data-testid Panel header Graph"]').first();
 const kvNow = Math.round(Math.max(0, ...(await prom(`max_over_time(vllm_log_kv_cache_usage_pct{pod_name="${pod}"}[5m])`)).map(x => x[1])));
 await box(right);
-await caption(`That pod's KV cache around this request: ${kvNow}% full`, 'The slow request, explained in one click');
-await sleep(11000);
-await box(null);
-await clickOn(chain); await sleep(1000);
-await clickOn(p.getByRole('link', { name: /GPU memory \(DCGM\) for this pod/ })); await sleep(8000);
-await box(p.locator('[data-testid="data-testid Panel header Graph"]').first());
-await caption('Same pod, GPU memory: flat', 'DCGM alone would never have explained this request');
+await caption(`That pod's car park during this request: ${kvNow}% full`, 'The slow request, explained in one click');
 await sleep(10000);
 
-// S6 extras: what broke + misleading counters
+// S9 back to the dashboard
 await box(null); await caption('', '');
-await p.goto(DASH, { waitUntil: 'load' }); await sleep(7000);
-const row = p.getByText('Details (for Q&A)').first();
-await clickOn(row); await sleep(3000);
-await p.locator(panel(17)).scrollIntoViewIfNeeded().catch(() => {}); await sleep(2500);
-const [now, hour] = await series();
-await box(panel(17));
-await caption('What broke: cardinality from per-pod GPU metrics', `Same 2 GPUs: ${now} live series, ${hour} seen in the last hour. Every pod restart adds a new set. Fix: keep the pod name, drop pod labels.`, 'top');
-await sleep(13000);
-await p.locator(panel(11)).scrollIntoViewIfNeeded().catch(() => {}); await sleep(2000);
-await box(panel(12));
-await caption('GPU utilisation %: "busy" if any kernel ran in the sample', 'Coarse. Looks the same for a healthy pod and a drowning one.', 'top');
-await sleep(10000);
-await box(panel(11));
-await caption('SM active: how much of the chip is actually computing', 'The profiling counter to watch instead (DCGM_FI_PROF_SM_ACTIVE)', 'top');
-await sleep(10000);
+await p.goto(DASH, { waitUntil: 'load' }); await sleep(6000);
+await caption('Three signals, one pod name', 'GPU exporter: exported_pod  ·  Fluent Bit: pod_name  ·  OTel: k8s.pod.name');
+await sleep(9000);
 
-// S7 outro
+// S10 outro
 await box(null); await caption('', '');
 await card(`<div style="font:700 56px/1.2 Inter,Helvetica,Arial;margin-bottom:30px">The pod is the join key</div>
-  <div>dcgm-exporter <span style="color:#ff9830">exported_pod</span> &nbsp;·&nbsp; Fluent Bit <span style="color:#ff9830">pod_name</span> &nbsp;·&nbsp; OTel <span style="color:#ff9830">k8s.pod.name</span></div>
-  <div style="margin-top:26px;color:#9fa7b3">Watch: SM active · KV cache % · requests waiting</div>
+  <div>GPU memory says how big the car park is. Only the server's log says how full it is.</div>
+  <div style="margin-top:26px;color:#9fa7b3">Watch: KV cache % · request time · SM active (not GPU util)</div>
   <div style="margin-top:8px;color:#9fa7b3">All configs in the repo: manifests/</div>`);
 cues.push(`${ts()}  [end card]`);
-await sleep(9000);
+await sleep(8000);
 
 rec = false; await cap; await b.close();
 // frame list for ffmpeg (each frame shown until the next one was taken)

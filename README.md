@@ -62,7 +62,8 @@ Two g5/g6 xlarge nodes (NVIDIA A10G or L4, one GPU each) cost roughly USD 2.4/ho
 - Traces have two hops: the loadgen sends a client span and a `traceparent` header, vLLM continues it.
   In Grafana, the chain icon on any span opens that pod's GPU memory and KV cache (`tracesToMetrics`).
 - Dashboard JSON is generated: edit `manifests/60-grafana/build_dashboard.py`, then
-  `python3 manifests/60-grafana/build_dashboard.py manifests/60-grafana/gpu-inference-dashboard.json`.
+  `cd manifests/60-grafana && python3 build_dashboard.py gpu-inference-dashboard.json gpu-inference-deep-dive.json`
+  (stage dashboard + deep dive for Q&A).
 
 This talk builds on an internal AWS GenAI observability session; credit to the
 original authors.

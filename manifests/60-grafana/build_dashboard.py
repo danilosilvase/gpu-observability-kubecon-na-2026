@@ -2,6 +2,10 @@ import json, sys
 P = {"type": "prometheus", "uid": "prometheus"}
 J = {"type": "jaeger", "uid": "jaeger"}
 RED, BLUE = "red", "blue"
+# *_over_time drops the metric name, so count each counter separately and add them up.
+COUNTERS = ["DCGM_FI_DEV_FB_USED", "DCGM_FI_DEV_FB_FREE", "DCGM_FI_PROF_SM_ACTIVE", "DCGM_FI_PROF_DRAM_ACTIVE",
+            "DCGM_FI_DEV_POWER_USAGE", "DCGM_FI_DEV_GPU_TEMP", "DCGM_FI_DEV_GPU_UTIL"]
+SEEN_1H = " + ".join(f"count(count_over_time({c}[1h]))" for c in COUNTERS)
 # Fluent Bit log_to_metrics gauges keep their last value after a pod dies. Join on pods Running now.
 LIVE = ' and on(pod_name) label_replace(kube_pod_status_phase{namespace="inference", phase="Running"} == 1, "pod_name", "$1", "pod", "(.*)")'
 
@@ -22,6 +26,7 @@ def ts(pid, title, desc, targets, x, y, w, h, unit, mn=None, mx=None, steps=None
         d["thresholds"] = {"mode": "absolute", "steps": steps}
         d["custom"]["thresholdsStyle"] = {"mode": tstyle}
     if extra: d.update(extra)
+    d["noValue"] = "No load yet"
     return {"id": pid, "type": "timeseries", "title": title, "description": desc, "datasource": P,
             "gridPos": {"x": x, "y": y, "w": w, "h": h},
             "fieldConfig": {"defaults": d, "overrides": colours()},
@@ -56,7 +61,7 @@ panels.append({
     "datasource": P, "gridPos": {"x": 0, "y": 0, "w": 24, "h": 5},
     "targets": [{"datasource": P, "refId": "A", "legendFormat": "{{pod_name}}",
                  "expr": 'max by (pod_name) (max_over_time(vllm_log_kv_cache_usage_pct{pod_name=~"$pod"}[5m]))' + LIVE}],
-    "fieldConfig": {"defaults": {"unit": "percent", "decimals": 0,
+    "fieldConfig": {"defaults": {"unit": "percent", "decimals": 0, "noValue": "No load yet",
         "mappings": [
             {"type": "range", "options": {"from": 90, "to": 1000, "result": {"text": "MEMORY-CONSTRAINED", "color": "red", "index": 0}}},
             {"type": "range", "options": {"from": 30, "to": 90, "result": {"text": "BUSY", "color": "orange", "index": 1}}},
@@ -89,20 +94,31 @@ panels.append(traces(6, "4. Slowest requests on vllm-overprov (traces, click a T
 
 # Collapsed detail row: off-screen on stage, there for Q&A
 detail = [
+    {"id": 17, "type": "stat", "title": "What broke: GPU series, same 2 GPUs (live now vs seen in the last hour)",
+     "description": "Every new pod name creates a new set of GPU series. Prometheus keeps old ones until retention ends.",
+     "datasource": P, "gridPos": {"x": 0, "y": 27, "w": 24, "h": 6},
+     "targets": [{"datasource": P, "refId": "A", "legendFormat": "live now", "instant": True,
+                  "expr": 'count({__name__=~"DCGM_.*"})'},
+                 {"datasource": P, "refId": "B", "legendFormat": "seen in the last hour", "instant": True,
+                  "expr": SEEN_1H}],
+     "fieldConfig": {"defaults": {"unit": "none", "decimals": 0, "color": {"mode": "fixed", "fixedColor": "orange"}}, "overrides": []},
+     "options": {"colorMode": "value", "graphMode": "none", "textMode": "value_and_name", "justifyMode": "center",
+                 "text": {"titleSize": 28, "valueSize": 80},
+                 "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": False}}},
     ts(11, "SM active ratio (real compute occupancy) · DCGM", "",
-       [{"expr": 'DCGM_FI_PROF_SM_ACTIVE{exported_pod=~"$pod"}', "legendFormat": "{{exported_pod}}"}], 0, 24, 8, 8, "percentunit", 0, 1),
+       [{"expr": 'DCGM_FI_PROF_SM_ACTIVE{exported_pod=~"$pod"}', "legendFormat": "{{exported_pod}}"}], 0, 30, 8, 8, "percentunit", 0, 1),
     ts(12, "GPU utilisation % (coarse, misleading) · DCGM", "",
-       [{"expr": 'DCGM_FI_DEV_GPU_UTIL{exported_pod=~"$pod"}', "legendFormat": "{{exported_pod}}"}], 8, 24, 8, 8, "percent", 0, 100),
+       [{"expr": 'DCGM_FI_DEV_GPU_UTIL{exported_pod=~"$pod"}', "legendFormat": "{{exported_pod}}"}], 8, 30, 8, 8, "percent", 0, 100),
     ts(13, "Generation tokens/s · from the log", "",
-       [{"expr": 'vllm_log_gen_tokens_per_s{pod_name=~"$pod"}' + LIVE, "legendFormat": "{{pod_name}}"}], 16, 24, 8, 8, "none", 0),
+       [{"expr": 'vllm_log_gen_tokens_per_s{pod_name=~"$pod"}' + LIVE, "legendFormat": "{{pod_name}}"}], 16, 30, 8, 8, "none", 0),
     ts(14, "Waiting / running / preemptions · from the log", "",
        [{"expr": 'vllm_log_waiting_reqs{pod_name=~"$pod"}' + LIVE, "legendFormat": "waiting {{pod_name}}"},
         {"expr": 'vllm_log_running_reqs{pod_name=~"$pod"}' + LIVE, "legendFormat": "running {{pod_name}}"},
-        {"expr": 'vllm_log_preemptions_total{pod_name=~"$pod"}' + LIVE, "legendFormat": "preempted {{pod_name}}"}], 0, 32, 8, 8, "none", 0),
+        {"expr": 'vllm_log_preemptions_total{pod_name=~"$pod"}' + LIVE, "legendFormat": "preempted {{pod_name}}"}], 0, 38, 8, 8, "none", 0),
     ts(15, "Cross-check: KV cache % · native vLLM /metrics", "vLLM exposes this itself; many servers do not, which is why the log path exists.",
-       [{"expr": 'vllm:kv_cache_usage_perc{pod=~"$pod"} * 100', "legendFormat": "{{pod}}"}], 8, 32, 8, 8, "percent", 0, 100),
+       [{"expr": 'vllm:kv_cache_usage_perc{pod=~"$pod"} * 100', "legendFormat": "{{pod}}"}], 8, 38, 8, 8, "percent", 0, 100),
     ts(16, "Cross-check: tokens/s · native vLLM /metrics", "",
-       [{"expr": 'rate(vllm:generation_tokens_total{pod=~"$pod"}[1m])', "legendFormat": "{{pod}}"}], 16, 32, 8, 8, "none", 0),
+       [{"expr": 'rate(vllm:generation_tokens_total{pod=~"$pod"}[1m])', "legendFormat": "{{pod}}"}], 16, 38, 8, 8, "none", 0),
 ]
 panels.append({"id": 10, "type": "row", "title": "Details (for Q&A)", "collapsed": True,
                "gridPos": {"x": 0, "y": 26, "w": 24, "h": 1}, "panels": detail})

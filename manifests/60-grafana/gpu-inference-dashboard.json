@@ -105,6 +105,7 @@
         "defaults": {
           "unit": "percent",
           "decimals": 0,
+          "noValue": "No load yet",
           "mappings": [
             {
               "type": "range",
@@ -195,7 +196,8 @@
             "spanNulls": true
           },
           "min": 0,
-          "max": 24576
+          "max": 24576,
+          "noValue": "No load yet"
         },
         "overrides": [
           {
@@ -295,7 +297,8 @@
                 "value": 90
               }
             ]
-          }
+          },
+          "noValue": "No load yet"
         },
         "overrides": [
           {
@@ -398,7 +401,8 @@
                 "value": 3
               }
             ]
-          }
+          },
+          "noValue": "No load yet"
         },
         "overrides": [
           {
@@ -688,6 +692,72 @@
       },
       "panels": [
         {
+          "id": 17,
+          "type": "stat",
+          "title": "What broke: GPU series, same 2 GPUs (live now vs seen in the last hour)",
+          "description": "Every new pod name creates a new set of GPU series. Prometheus keeps old ones until retention ends.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 27,
+            "w": 24,
+            "h": 6
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "refId": "A",
+              "legendFormat": "live now",
+              "instant": true,
+              "expr": "count({__name__=~\"DCGM_.*\"})"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "refId": "B",
+              "legendFormat": "seen in the last hour",
+              "instant": true,
+              "expr": "count(count_over_time(DCGM_FI_DEV_FB_USED[1h])) + count(count_over_time(DCGM_FI_DEV_FB_FREE[1h])) + count(count_over_time(DCGM_FI_PROF_SM_ACTIVE[1h])) + count(count_over_time(DCGM_FI_PROF_DRAM_ACTIVE[1h])) + count(count_over_time(DCGM_FI_DEV_POWER_USAGE[1h])) + count(count_over_time(DCGM_FI_DEV_GPU_TEMP[1h])) + count(count_over_time(DCGM_FI_DEV_GPU_UTIL[1h]))"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "decimals": 0,
+              "color": {
+                "mode": "fixed",
+                "fixedColor": "orange"
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "colorMode": "value",
+            "graphMode": "none",
+            "textMode": "value_and_name",
+            "justifyMode": "center",
+            "text": {
+              "titleSize": 28,
+              "valueSize": 80
+            },
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            }
+          }
+        },
+        {
           "id": 11,
           "type": "timeseries",
           "title": "SM active ratio (real compute occupancy) \u00b7 DCGM",
@@ -698,7 +768,7 @@
           },
           "gridPos": {
             "x": 0,
-            "y": 24,
+            "y": 30,
             "w": 8,
             "h": 8
           },
@@ -712,7 +782,8 @@
                 "spanNulls": true
               },
               "min": 0,
-              "max": 1
+              "max": 1,
+              "noValue": "No load yet"
             },
             "overrides": [
               {
@@ -782,7 +853,7 @@
           },
           "gridPos": {
             "x": 8,
-            "y": 24,
+            "y": 30,
             "w": 8,
             "h": 8
           },
@@ -796,7 +867,8 @@
                 "spanNulls": true
               },
               "min": 0,
-              "max": 100
+              "max": 100,
+              "noValue": "No load yet"
             },
             "overrides": [
               {
@@ -866,7 +938,7 @@
           },
           "gridPos": {
             "x": 16,
-            "y": 24,
+            "y": 30,
             "w": 8,
             "h": 8
           },
@@ -879,7 +951,8 @@
                 "showPoints": "never",
                 "spanNulls": true
               },
-              "min": 0
+              "min": 0,
+              "noValue": "No load yet"
             },
             "overrides": [
               {
@@ -949,7 +1022,7 @@
           },
           "gridPos": {
             "x": 0,
-            "y": 32,
+            "y": 38,
             "w": 8,
             "h": 8
           },
@@ -962,7 +1035,8 @@
                 "showPoints": "never",
                 "spanNulls": true
               },
-              "min": 0
+              "min": 0,
+              "noValue": "No load yet"
             },
             "overrides": [
               {
@@ -1050,7 +1124,7 @@
           },
           "gridPos": {
             "x": 8,
-            "y": 32,
+            "y": 38,
             "w": 8,
             "h": 8
           },
@@ -1064,7 +1138,8 @@
                 "spanNulls": true
               },
               "min": 0,
-              "max": 100
+              "max": 100,
+              "noValue": "No load yet"
             },
             "overrides": [
               {
@@ -1134,7 +1209,7 @@
           },
           "gridPos": {
             "x": 16,
-            "y": 32,
+            "y": 38,
             "w": 8,
             "h": 8
           },
@@ -1147,7 +1222,8 @@
                 "showPoints": "never",
                 "spanNulls": true
               },
-              "min": 0
+              "min": 0,
+              "noValue": "No load yet"
             },
             "overrides": [
               {

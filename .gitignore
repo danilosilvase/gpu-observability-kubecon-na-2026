@@ -28,3 +28,7 @@ terraform/terraform.tfvars
 .idea/
 .vscode/
 *.swp
+
+# Rendered demo videos (large binaries, shared out of band)
+deck/video/*.mp4
+demo/record/out/

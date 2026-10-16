@@ -1,4 +1,4 @@
-# Demo script (v8): 4 screens, about 9 minutes live (recordings: 5:45 captioned, 7:42 clean)
+# Demo script (v8): 4 screens, about 9 minutes live (recordings: 9:28 captioned, 7:42 clean)
 
 Same 4 screens, same load, same clicks whether it runs live or from the recording. The load starts on camera, on screen 1.
 Screens: `gpu-walk-1` to `gpu-walk-4` (Grafana, kiosk). Each screen has the same layout:

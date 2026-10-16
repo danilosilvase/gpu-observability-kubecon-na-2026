@@ -8,7 +8,7 @@
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"; REPO="$HERE/../.."; cd "$HERE"
 VID="$REPO/deck/video"; mkdir -p "$VID"
-PACE_FX="${PACE_FX:-1.2}"; PACE_CLEAN="${PACE_CLEAN:-1.8}"   # clean is slower: room to talk (and pause)
+PACE_FX="${PACE_FX:-2.3}"; PACE_CLEAN="${PACE_CLEAN:-1.8}"   # captioned ~9:20 (talk length), clean ~7:40 (you talk over it, Space pauses)
 for u in localhost:3000/api/health localhost:9090/-/ready localhost:16686/; do
   curl -s -m 5 -o /dev/null "http://$u" || { echo "tunnel down: $u (run demo/start.sh)"; exit 1; }; done
 [ "$(kubectl --request-timeout=20s -n inference get job vllm-loadgen -o jsonpath='{.status.active}' 2>/dev/null)" = 1 ] && {

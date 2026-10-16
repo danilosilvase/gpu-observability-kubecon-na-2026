@@ -41,6 +41,35 @@ About 9 min without slowing down: the load starts on camera on screen 1 (GPU mem
 red's KV cache fills while screen 2 is explained, and screen 3 adds one blue trace next to the red one (queue time contrast).
 Next candidate: a green "right number" pod (screen 5), after a GPU capacity check on the rig. Supersedes "load starts at Henrique slide 1".
 
+## Slides (grill, Oct 16): template = Observability Day NA 2026 branded PowerPoint
+S1. Cold-open vote (Henrique, slide 1): "Two vLLM pods. Same model, same GPU type, same traffic. One reserved 8% of GPU memory,
+the other 90%. Which one is in trouble?" Hands up: 8% / 90% / both / can't tell. NO reveal on slide 1 ("Hold that. Danilo
+will answer it live."). Reveal = demo screen 4. Slide 5 calls back: "Who voted both?". The "what happened to us" line moves
+to after the demo (opens slide 4). Supersedes decision 5's reveal timing. Fact checked: vLLM default gpu_memory_utilization = 0.92
+(vllm/config/cache.py, main).
+
+S2. Slide 2 = "GPU memory is a setting, not a signal". Four grey tiles (CPU, memory, network, disk) say what they MEASURE
+(node/container resources), no fake green numbers; fifth tile: GPU memory flat at 92% "set at startup". Footnote: vLLM default 0.92.
+S3. Slide 3 = "What runs out first: room for requests in flight". CONNECTION POOL analogy (replaces buffer pool: a full buffer
+pool is healthy, the opposite lesson): pool size = --gpu-memory-utilization, in use = KV cache %, waiting = requests waiting,
+latency climbs while GPU memory is flat. Generic GPU box (weights | KV cache | rest) + pool/queue sketch, no pod named.
+Bottom line: "vLLM tells you how full it is, every 10 seconds, in its log." Jimmy Song footnote stays.
+S4. Slide 4 = opener (prefix caching: identical prompts shared the cache, only unique prompts made it struggle) + cardinality
+(promised in the abstract: 14 live -> 56 after 3 rollouts) + unfair experiment (12 s vs 0.13 s -> equal traffic 5.9 s vs 0.08 s;
+first to cut, else backup slide). Rows: what we saw / what we changed. No charts.
+S5. Close = two slides. Slide 5 "Take this home": "Who voted both? You were right.", takeaway, one config line per component
+(dcgm --kubernetes=true, Fluent Bit Lua KV match, k8sattributes k8s.pod.name), rule of thumb, repo QR. Slide 6 "Questions":
+CNCF feedback QR, credit [original author], Jimmy Song further reading. GitHub repo WILL be public (Danilo owns it).
+
+S6. ONE laptop on stage (Danilo's): deck in PowerPoint (Extended display, notes) + Grafana + terminal; Henrique uses a clicker
+(bring one); Cmd+Tab in/out of the demo. BOTH laptops fully set up for redundancy (deck, demo access to the rig account,
+kubectl, tunnels, Grafana login, both videos); Henrique runs demo/check.sh on his laptop before Oct 22.
+S7. Bridge slide after slide 3: vote question large + strip "1 GPU > 2 Log > 3 Trace > 4 Answer" (same as the dashboards);
+Henrique: "Danilo, which one is in trouble?". Out of the demo: Cmd+Tab straight to slide 4 (no thank-you slide).
+Hidden backup slide after the bridge: static screen-4 image (verdict, 2.0/20.6 GB, 100%/31%, 5.9 s/0.08 s).
+S8. Title slide: accepted abstract title verbatim. Henrique Santana, Principal Cloud Engineer, AWS; Danilo Silva, Senior
+Delivery Consultant, AWS. No logos. TODO Henrique: Sessionize still says "Danilo Souza", fix to Danilo Silva.
+
 ## Still open
 - Timed rehearsal of DEMO-SCRIPT.md (target 10 min).
 - Henrique's 5 slides.

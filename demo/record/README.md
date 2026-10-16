@@ -5,8 +5,8 @@
 
 | Mode | Output | Use |
 |------|--------|-----|
-| `CLEAN=0` (default), `PACE=1.2` | `deck/video/gpu-obs-demo-v8.mp4` | captions + spotlight boxes, works without a narrator |
-| `CLEAN=1`, `PACE=1.8` | `deck/video/gpu-obs-demo-v8-clean.mp4` | no overlays, slower: talk over it on stage |
+| `CLEAN=0` (default), `PACE=2.3` (~9:20) | `deck/video/gpu-obs-demo-v8.mp4` | captions + spotlight boxes, works without a narrator |
+| `CLEAN=1`, `PACE=1.8` (~7:40) | `deck/video/gpu-obs-demo-v8-clean.mp4` | no overlays, slower: talk over it on stage |
 
 Prerequisites: rig up, `demo/start.sh` running (Grafana :3000, Jaeger :16686, Prometheus :9090), Chrome, ffmpeg,
 `npm i playwright` in this folder. Best with no load in the 10 min before, so screen 1 shows idle and then the load.

@@ -51,7 +51,8 @@ resource "kubernetes_config_map_v1" "dashboard" {
   depends_on = [helm_release.kps]
 }
 
-# The 4-screen demo walkthrough (live and recorded use the same dashboards), from build_walkthrough.py
+# The 4-screen demo walkthrough (live and recorded use the same dashboards), from build_walkthrough.py.
+# Terraform owns this ConfigMap; manifests/deploy.sh creates the same one for clusters without Terraform (use one or the other).
 resource "kubernetes_config_map_v1" "walkthrough" {
   metadata {
     name      = "gpu-walkthrough-dashboards"

@@ -11,7 +11,7 @@ Red = `vllm-constrained` (`--gpu-memory-utilization=0.08`). Blue = `vllm-overpro
 
 | When | Who | Do |
 |------|-----|----|
-| T-60 | Danilo | `demo/start.sh` (tunnels, opens screen 1), then `demo/check.sh` = 9 OK |
+| T-60 | Danilo | `demo/start.sh` (tunnels, opens screen 4 then screen 1 in two tabs; does not start the load), then `demo/check.sh` = 9 OK |
 | T-5 | Danilo | `demo/check.sh` again. Clean video open in QuickTime, paused at 0:00 |
 | Henrique starts slide 1 (the vote) | Danilo | `demo/load.sh` (silent, laptop side). The load must be 4-6 min old when the demo starts: red's KV cache fills in ~90 s and screen 4 reads the last 3 min |
 | Henrique ends slide 3 | Danilo | switch the projector to Grafana, screen 1 |

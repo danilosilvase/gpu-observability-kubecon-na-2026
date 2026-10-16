@@ -16,7 +16,7 @@ The recording walks the same screens with the same clicks, in two versions: capt
 | T-60, T-5 | `demo/check.sh` | `9 OK, 0 FAIL` |
 | Henrique starts slide 1 | `demo/load.sh` | 20-min load; red's KV cache full in ~90 s |
 | Fallback | play `deck/video/gpu-obs-demo-v7-clean.mp4` from the chapter you were on | same screens, no captions |
-| Re-record | `demo/record/record-both.sh` | both videos, about 10 min (starts the load itself if none) |
+| Re-record | `demo/record/record-both.sh` | both videos in ~11 min wall time: captioned ~4.5 min, clean ~6.5 min (starts the load if none) |
 | After | `demo/stop.sh`, then `terraform destroy -auto-approve` | rig costs ~$2.4/hr |
 
 Your IP changed? Re-run the `printf ... > terraform.tfvars` line from the README, then `terraform apply -target=module.eks`.

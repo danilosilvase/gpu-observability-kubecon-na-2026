@@ -7,6 +7,7 @@
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"; REPO="$HERE/../.."; cd "$HERE"
 WARMUP="${WARMUP:-240}"; VID="$REPO/deck/video"
+mkdir -p "$VID"
 PACE_FX="${PACE_FX:-1.2}"; PACE_CLEAN="${PACE_CLEAN:-1.8}"   # clean is slower: room to talk (and pause)
 for u in localhost:3000/api/health localhost:9090/-/ready localhost:16686/; do
   curl -s -m 5 -o /dev/null "http://$u" || { echo "tunnel down: $u (run demo/start.sh)"; exit 1; }; done
@@ -15,16 +16,19 @@ start=$(kubectl --request-timeout=20s -n inference get job vllm-loadgen -o jsonp
 if [ -z "$start" ] || [ "$(kubectl --request-timeout=20s -n inference get job vllm-loadgen -o jsonpath='{.status.active}')" != "1" ]; then
   "$REPO/demo/load.sh"; start=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 fi
-age=$(( $(date -u +%s) - $(date -ju -f %Y-%m-%dT%H:%M:%SZ "$start" +%s) ))
+s=$(date -ju -f %Y-%m-%dT%H:%M:%SZ "$start" +%s 2>/dev/null || date -u -d "$start" +%s 2>/dev/null || echo 0)   # macOS, then GNU
+[ "$s" = 0 ] && { echo "cannot parse load start time: $start"; exit 1; }
+age=$(( $(date -u +%s) - s ))
 [ "$age" -gt 540 ] && { echo "load is ${age}s old; the recording needs ~10 min of it. Restart: demo/load.sh"; exit 1; }
 [ "$age" -lt "$WARMUP" ] && { echo "load is ${age}s old, waiting $((WARMUP - age))s"; sleep $((WARMUP - age)); }
 
 CLEAN=0 PACE=$PACE_FX    OUT=out-fx    node record.mjs > out-fx.log 2>&1 &   fx=$!
 CLEAN=1 PACE=$PACE_CLEAN OUT=out-clean node record.mjs > out-clean.log 2>&1 & cl=$!
-wait $fx; wait $cl
+rc=0; wait $fx || rc=$?; wait $cl || rc=$?
+[ $rc -eq 0 ] || { tail -5 out-fx.log out-clean.log; exit $rc; }
 for v in fx:gpu-obs-demo-v7 clean:gpu-obs-demo-v7-clean; do
   ( cd "out-${v%%:*}" && ffmpeg -loglevel error -y -f concat -safe 0 -i frames.txt -vf "fps=30,format=yuv420p" \
       -c:v libx264 -crf 18 -movflags +faststart "$VID/${v#*:}.mp4" )
 done
-cp out-fx/cues.txt "$VID/cues-v7.txt"
+python3 cues.py out-fx/cues.txt out-clean/cues.txt "$VID/CUES-v7.md"   # chapter times for both videos
 ls -la "$VID"/gpu-obs-demo-v7*.mp4

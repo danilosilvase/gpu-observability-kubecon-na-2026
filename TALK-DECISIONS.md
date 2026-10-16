@@ -33,9 +33,11 @@ started when Henrique opens the talk so it is 4-6 min old at the demo). The reco
 in two versions recorded at the same time during the same load: captioned + spotlight (works without a narrator) and clean
 (slower, no overlays, to talk over on stage). Script: DEMO-SCRIPT.md. Runbook: DEMO-RUNBOOK.md.
 
+## 11. Who clicks (Oct 16)
+Danilo drives and talks on all 4 screens. Henrique stays on the slides laptop. No hand-offs mid-demo.
+
 ## Still open
 - Timed rehearsal of DEMO-SCRIPT.md (target 10 min).
 - Henrique's 5 slides.
-- Who clicks (default in the script: Danilo clicks and talks).
 - Stage dashboard `gpu-inference-obs` is Q&A only now; its title "Which pod is in trouble?" can stay.
 - Original author name. GitHub publish (Code Defender, before Nov 2).

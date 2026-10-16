@@ -1,4 +1,4 @@
-# Demo runbook (v7): 4 screens, about 10 minutes, live with a recorded twin
+# Demo runbook (v8): 4 screens, about 9 minutes, live with a recorded twin
 
 KubeCon NA 2026, Mon 9 Nov, 11:50 MST, 25 min. Henrique: slides 1-3 (about 6 min), Danilo: the demo (about 10 min), Henrique: slides 4-5.
 What to click and say, screen by screen: [DEMO-SCRIPT.md](DEMO-SCRIPT.md).
@@ -15,7 +15,7 @@ The recording walks the same screens with the same clicks, in two versions: capt
 | T-60 min | `export AWS_PROFILE=<admin>` then `demo/start.sh` | tunnels up, screen 4 and screen 1 open in two tabs |
 | T-60, T-5 | `demo/check.sh` | `9 OK, 0 FAIL` |
 | On stage, screen 1 | `demo/load.sh` | 20-min load; red's KV cache full in ~60-90 s |
-| Fallback | play `deck/video/gpu-obs-demo-v7-clean.mp4` from the chapter you were on | same screens, no captions |
+| Fallback | play `deck/video/gpu-obs-demo-v8-clean.mp4` from the chapter you were on | same screens, no captions |
 | Re-record | `demo/record/record-both.sh` (rig idle 10 min first) | both videos at once; starts the load on camera |
 | After | `demo/stop.sh`, then `terraform destroy -auto-approve` | rig costs ~$2.4/hr |
 
@@ -39,9 +39,9 @@ The old one-screen stage dashboard `gpu-inference-obs` and the deep dive `gpu-in
 
 | File | What | Use |
 |------|------|-----|
-| `deck/video/gpu-obs-demo-v7-clean.mp4` | no captions, plain pointer, slower pace | backup on stage: talk over it, Space pauses |
-| `deck/video/gpu-obs-demo-v7.mp4` | captions + spotlight boxes | works without a narrator: sharing, rehearsal, no-mic fallback |
-| `deck/video/CUES-v7.md` | chapter times and captions for both | find your place fast |
+| `deck/video/gpu-obs-demo-v8-clean.mp4` | no captions, plain pointer, slower pace | backup on stage: talk over it, Space pauses |
+| `deck/video/gpu-obs-demo-v8.mp4` | captions + spotlight boxes | works without a narrator: sharing, rehearsal, no-mic fallback |
+| `deck/video/CUES-v8.md` | chapter times and captions for both | find your place fast |
 
 ## Numbers measured on the rig (Oct 16, NVIDIA A10G 24 GB on g5.xlarge, SAME traffic to both: 192 long requests each)
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Records the backup video twice, at the same time, during the same load:
-#   gpu-obs-demo-v7.mp4        captions + spotlight boxes (works without a narrator)
-#   gpu-obs-demo-v7-clean.mp4  same clicks and timing, no overlays (talk over it live)
+#   gpu-obs-demo-v8.mp4        captions + spotlight boxes (works without a narrator)
+#   gpu-obs-demo-v8-clean.mp4  same clicks and timing, no overlays (talk over it live)
 # Same 4 screens (gpu-walk-1..4), same clicks and same on-camera load start as the live demo (DEMO-SCRIPT.md).
 # Needs demo/start.sh tunnels, Chrome, `npm i playwright` in this folder, ffmpeg, and an IDLE rig: no load in the
 # last 10 min, so screen 1 shows idle and then the load arriving. The captioned run starts the load itself.
@@ -20,9 +20,9 @@ SYNC=.sync START_LOAD=0 CLEAN=1 PACE=$PACE_CLEAN OUT=out-clean node record.mjs >
 # SYNC: both start recording together; steps before the load use fixed timing, so both see it start at the same second
 rc=0; wait $fx || rc=$?; wait $cl || rc=$?
 [ $rc -eq 0 ] || { tail -5 out-fx.log out-clean.log; exit $rc; }
-for v in fx:gpu-obs-demo-v7 clean:gpu-obs-demo-v7-clean; do
+for v in fx:gpu-obs-demo-v8 clean:gpu-obs-demo-v8-clean; do
   ( cd "out-${v%%:*}" && ffmpeg -loglevel error -y -f concat -safe 0 -i frames.txt -vf "fps=30,format=yuv420p" \
       -c:v libx264 -crf 18 -movflags +faststart "$VID/${v#*:}.mp4" )
 done
-python3 cues.py out-fx/cues.txt out-clean/cues.txt "$VID/CUES-v7.md"   # chapter times for both videos
-ls -la "$VID"/gpu-obs-demo-v7*.mp4
+python3 cues.py out-fx/cues.txt out-clean/cues.txt "$VID/CUES-v8.md"   # chapter times for both videos
+ls -la "$VID"/gpu-obs-demo-v8*.mp4

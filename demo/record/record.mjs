@@ -122,7 +122,7 @@ const gb   = re => one(`DCGM_FI_DEV_FB_USED{exported_pod=~"${re}"}`).then(v => (
 const kv   = re => one(`max_over_time(vllm_log_kv_cache_usage_pct{pod_name=~"${re}"}[1m])`).then(Math.round);
 const tps  = re => one(`vllm_log_gen_tokens_per_s{pod_name=~"${re}"}`).then(Math.round);
 const avg  = (m, re) => one(`sum(rate(vllm:${m}_sum{pod=~"${re}"}[2m])) / sum(rate(vllm:${m}_count{pod=~"${re}"}[2m]))`);
-const secs = v => v >= 1 ? `${v.toFixed(1)} s` : `${Math.round(v * 1000)} ms`;
+const secs = v => v >= 1 ? `${v.toFixed(1)} s` : v >= 0.001 ? `${Math.round(v * 1000)} ms` : 'under 1 ms';
 const panel = id => `[data-panelid="${id}"]`;
 const W = n => `${G}/d/gpu-walk-${n}?orgId=1&kiosk`;
 async function next(n) {               // click the screen's own "Next" link, as the presenter does

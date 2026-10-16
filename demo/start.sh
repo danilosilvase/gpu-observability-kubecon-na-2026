@@ -29,5 +29,5 @@ open "http://localhost:3000/d/gpu-walk-4?orgId=1&kiosk" 2>/dev/null || true; sle
 open "http://localhost:3000/d/gpu-walk-1?orgId=1&kiosk" 2>/dev/null || true
 echo "Grafana   http://localhost:3000   (admin / gpu-obs-demo)"
 echo "Demo      screens 1-4: /d/gpu-walk-1 .. /d/gpu-walk-4   (script: DEMO-SCRIPT.md)"
-echo "Backup    deck/video/gpu-obs-demo-v7.mp4 (same 4 screens, recorded)"
+echo "Backup    deck/video/gpu-obs-demo-v8.mp4 (same 4 screens, recorded)"
 echo "Load: demo/load.sh when Henrique starts slide 1. Stop tunnels: demo/stop.sh"

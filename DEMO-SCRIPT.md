@@ -1,4 +1,4 @@
-# Demo script (v7): 4 screens, about 10 minutes
+# Demo script (v8): 4 screens, about 9 minutes live (recordings: 5:45 captioned, 7:42 clean)
 
 Same 4 screens, same load, same clicks whether it runs live or from the recording. The load starts on camera, on screen 1.
 Screens: `gpu-walk-1` to `gpu-walk-4` (Grafana, kiosk). Each screen has the same layout:
@@ -61,8 +61,8 @@ Red = `vllm-constrained` (`--gpu-memory-utilization=0.08`). Blue = `vllm-overpro
 
 ## If something breaks
 
-Switch to the clean recording (`deck/video/gpu-obs-demo-v7-clean.mp4`), jump to the screen you were on, keep talking with the same lines. Space pauses it.
-Chapter times are in [the cue sheet](deck/video/CUES-v7.md). The captioned version (`gpu-obs-demo-v7.mp4`) works without a narrator (sharing after the talk, or if both of us lose the mic).
+Switch to the clean recording (`deck/video/gpu-obs-demo-v8-clean.mp4`), jump to the screen you were on, keep talking with the same lines. Space pauses it.
+Chapter times are in [the cue sheet](deck/video/CUES-v8.md). The captioned version (`gpu-obs-demo-v8.mp4`) works without a narrator (sharing after the talk, or if both of us lose the mic).
 
 | Symptom | Do |
 |---------|----|

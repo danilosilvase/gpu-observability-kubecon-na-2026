@@ -283,7 +283,7 @@ for sh in s2.shapes:
     if sh.has_text_frame and "Senior Delivery Consultant" in sh.text_frame.text:
         for par, txt in zip(sh.text_frame.paragraphs,
                             ["Danilo Souza, AWS Professional Services",
-                             "Henrique Santana, AWS Support",
+                             "Henrique Santana, Principal Cloud Engineer, AWS",
                              "Observability Day North America, Salt Lake City, 9 November 2026"]):
             if par.runs:
                 par.runs[0].text = txt
@@ -331,14 +331,14 @@ fade_in(s, why_box)
 # ================================================================ 4. the hook
 s = content_slide(
     "Utilisation alone tells you nothing.",
-    src="Industry average production GPU utilisation ~5%: Cast AI, State of GPU utilisation 2026 (cast.ai/blog/fractional-gpu-kubernetes)",
+    src="Average GPU utilisation across tens of thousands of production Kubernetes clusters: 5%. Cast AI, 2026 State of Kubernetes Optimization Report (cast.ai/blog/fractional-gpu-kubernetes)",
     note=("0.5 min. Across the industry the average production GPU runs at around 5% utilisation. Our incident fleet "
           "reads 95%. Same counter, two readings. One fleet looks saturated, the other idle. On its own, the number "
           "says nothing about the actual inference work. The talk is about where that signal actually lives."))
 half = (CW - 400000) // 2
 for i, (num, lab, sub, col, fill) in enumerate([
         ("95%", "our fleet at 02:14", "looks saturated", RED, RED_LIGHT),
-        ("~5%", "industry average", "looks idle", BLUE, RGBColor(0xE4, 0xEE, 0xF8))]):
+        ("~5%", "average prod K8s GPU", "looks idle", BLUE, RGBColor(0xE4, 0xEE, 0xF8))]):
     x = LM + i * (half + 400000)
     rect(s, x, BODY_TOP, half, 3600000, fill)
     text_box(s, x, BODY_TOP, half, 3600000, [

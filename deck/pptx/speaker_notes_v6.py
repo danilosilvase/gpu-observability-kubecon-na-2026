@@ -8,7 +8,7 @@ Check the clicker. Grafana open on the second screen, stage dashboard in kiosk m
 Next: title slide.""",
 
 2: """[0:15, 1:00] [Danilo + Henrique] Who we are, one line each, then the thesis.
-Danilo: "I'm Danilo, I build platforms for customers at AWS, mostly Kubernetes and ML infrastructure." Henrique: "I'm Henrique, AWS Support, I see a lot of GPU incidents after the fact." Point at the two chips: "We tried to explain a slow inference service with the GPU dashboard and got nothing. The answer was in a log line."
+Danilo: "I'm Danilo, I build platforms for customers at AWS, mostly Kubernetes and ML infrastructure." Henrique: "I'm Henrique, Principal Cloud Engineer in AWS Support, I see a lot of GPU incidents after the fact." Point at the two chips: "We tried to explain a slow inference service with the GPU dashboard and got nothing. The answer was in a log line."
 Next: the incident.""",
 
 3: """[1:00, 2:30] [Danilo] The incident.
@@ -16,7 +16,7 @@ Next: the incident.""",
 Next: the same counter, opposite story.""",
 
 4: """[2:30, 3:00] [Danilo] 30 seconds.
-"Across the industry the average production GPU runs at about 5% utilisation. Ours read 95%. Same counter. One looks saturated, one looks idle, and neither tells you anything about the inference work."
+"Cast AI looked at tens of thousands of production Kubernetes clusters this year: the average GPU runs at 5% utilisation. Ours read 95%. Same counter. One looks saturated, one looks idle, and neither tells you anything about the inference work."
 Next: Henrique, why GPU memory lies.""",
 
 5: """[3:00, 4:00] [Henrique] GPU memory is a config value.

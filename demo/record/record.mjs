@@ -2,12 +2,15 @@
 // Frames = JPEG screenshots (sharp text), assembled into an MP4 by ffmpeg afterwards.
 //   CLEAN=0 (default): captions + spotlight boxes + click pulse, so the video works without a narrator.
 //   CLEAN=1          : same clicks and timing, no overlays (a plain pointer only), for talking over it live.
-// Needs the load already running (record-both.sh starts it): the demo on the day starts with the load ~4-6 min old.
+// The load starts ON CAMERA on screen 1, as on stage. START_LOAD=1 (the captioned run) starts it; the clean run, recorded
+// at the same time, just shows the same moment. Steps before the load use fixed timing so both runs hit it together.
 import { chromium } from 'playwright';
 import fs from 'fs';
-const REPO = new URL('../..', import.meta.url).pathname.replace(/\/$/, '');
+import { exec } from 'child_process';
+const REPO = process.env.REPO || new URL('../..', import.meta.url).pathname.replace(/\/$/, '');
 const OUT = process.env.OUT || 'rec';
 const CLEAN = process.env.CLEAN === '1';
+const START_LOAD = process.env.START_LOAD === '1';
 const PACE = +(process.env.PACE || 1);          // multiply every dwell time
 const hold = s => sleep(s * 1000 * PACE);
 const G = 'http://localhost:3000', PROM = 'http://localhost:9090';
@@ -92,10 +95,26 @@ async function clickOn(loc) {
   if (!CLEAN) await ui(() => { const c = document.getElementById('cur'); c.animate([{ transform: 'translate(-50%,-50%) scale(1)' }, { transform: 'translate(-50%,-50%) scale(1.8)' }, { transform: 'translate(-50%,-50%) scale(1)' }], { duration: 400 }); });
   await sleep(250); await loc.click({ timeout: 5000 }).catch(e => console.log('SKIP click', e.message.slice(0, 60))); await sleep(300); return true;
 }
+async function term(cmd) {           // the command the presenter types, shown in both versions
+  await ui((cmd) => {
+    let t = document.getElementById('term');
+    if (!t) { t = document.createElement('div'); t.id = 'term'; document.body.appendChild(t); }
+    Object.assign(t.style, { position: 'fixed', right: '30px', top: '110px', zIndex: 100001, background: '#0b0c0e',
+      color: '#7ee787', font: '500 26px/1.4 Menlo,monospace', padding: '14px 22px', borderRadius: '10px',
+      border: '1px solid #444', boxShadow: '0 8px 30px rgba(0,0,0,.7)', transition: 'opacity .5s', opacity: cmd ? 1 : 0 });
+    t.textContent = cmd ? '$ ' + cmd : '';
+  }, cmd);
+}
+
 // ---------- data (live values for the captions, so they always match the screen) ----------
 async function prom(q) {
   try { const r = await (await fetch(`${PROM}/api/v1/query?query=${encodeURIComponent(q)}`)).json();
         return r.data.result.map(x => [x.metric, +x.value[1]]); } catch { return []; }
+}
+async function until(fn, ms, label) {   // wait on a real value, not a timer
+  const end = Date.now() + ms;
+  while (Date.now() < end) { if (await fn()) return true; await sleep(3000); }
+  console.log('timeout waiting for', label); return false;
 }
 const one = async q => { const v = (await prom(q)).map(x => x[1]).filter(Number.isFinite); return v.length ? Math.max(...v) : NaN; };
 const R = 'vllm-constrained.*', B = 'vllm-overprov.*';
@@ -114,16 +133,25 @@ async function next(n) {               // click the screen's own "Next" link, as
 }
 const hiLine = (id, txt) => p.locator(panel(id)).getByText(txt, { exact: false }).first();
 
-// ---------- precondition (not recorded): the load is on and red is full ----------
+const inflight = re => one(`sum(vllm:num_requests_running{pod=~"${re}"} + vllm:num_requests_waiting{pod=~"${re}"})`);
+
+// ---------- precondition (not recorded): the rig is idle, so the load starts on camera ----------
 {
-  const ok = (await kv(R)) > 90 && (await avg('time_to_first_token_seconds', R)) > 2;
-  if (!ok) { console.log('NOT WARM: start demo/load.sh and wait ~4 min (record-both.sh does this)'); process.exit(2); }
-  console.log('warm check OK');
+  const busy = (await inflight('vllm-.*')) > 0 || (await kv(R)) > 5;
+  if (busy) { console.log('NOT IDLE: a load is running or ended under a minute ago (demo/stop.sh, wait)'); process.exit(2); }
+  console.log('idle check OK');
 }
 await p.goto(`${G}/login`);
 await p.fill('input[name="user"]', 'admin'); await p.fill('input[name="password"]', 'gpu-obs-demo');
 await p.click('button[type="submit"]'); await p.waitForURL(u => !u.toString().includes('/login'));
 await p.goto(W(1), { waitUntil: 'load' }); await p.locator(panel(102)).waitFor({ timeout: 20000 }).catch(() => {}); await sleep(8000);
+
+// both versions start recording at the same moment (SYNC=<dir>, PEERS=2): each writes a ready file, waits for all
+if (process.env.SYNC) {
+  fs.mkdirSync(process.env.SYNC, { recursive: true }); fs.writeFileSync(`${process.env.SYNC}/${OUT.replace(/\W/g, '_')}`, '');
+  const end = Date.now() + 120000;
+  while (fs.readdirSync(process.env.SYNC).length < +(process.env.PEERS || 2) && Date.now() < end) await sleep(200);
+}
 
 // ---------- recording ----------
 rec = true; t0 = Date.now(); const cap = capLoop();
@@ -133,12 +161,25 @@ await hold(3);
 cues.push(`${ts()}  [screen 1: What does the GPU say?]`);
 await box(panel(101));
 await caption('One flag: the GPU exporter asks the kubelet which pod owns each GPU', 'Every GPU metric now carries the pod name');
-await hold(9);
+await sleep(10000);                          // fixed (not PACE) until the load starts: both versions hit it together
 const g1r = await gb(R), g1b = await gb(B);
 await box(panel(10));
-await caption(`GPU memory: red ${g1r} GB, blue ${g1b} GB`, 'The load started a few minutes ago. Neither line moved.');
-await hold(11);
-await box(panel(102)); await caption('', ''); await hold(6);
+await caption(`GPU memory: red ${g1r} GB, blue ${g1b} GB`, 'No traffic yet. Red reserved 8% of the GPU, blue 90%.');
+await sleep(10000);
+await box(null); await caption('', '');
+await term('demo/load.sh'); const tLoad = Date.now();
+if (START_LOAD) exec(`kubectl --request-timeout=30s -n inference delete job vllm-loadgen --ignore-not-found --wait=true --timeout=30s; kubectl --request-timeout=30s apply -f ${REPO}/manifests/20-vllm/loadgen-job.yaml`,
+  (e, o, er) => console.log('load:', e ? er : 'started'));
+await caption('Start the load: the same traffic to both pods', '192 long requests each, all the time');
+await sleep(6000); await term(null);
+await box(panel(11));
+await until(async () => (await inflight(R)) > 100 && (await inflight(B)) > 100, 120000, 'inflight');
+await caption('Requests arrive: the same number in flight on both pods', '');
+await hold(7);
+await box(panel(10));
+await caption(`GPU memory, under load: still red ${await gb(R)} GB, blue ${await gb(B)} GB`, 'Not a wiggle. This chart cannot tell you which one is in trouble.');
+await hold(10);
+await box(panel(102)); await caption('', ''); await hold(5);
 await box(null); await next(2);
 
 // ===== Screen 2: What does the server say? =====
@@ -146,10 +187,13 @@ cues.push(`${ts()}  [screen 2: What does the server say?]`);
 await box(hiLine(101, 'KV cache usage: 100'));
 await caption('vLLM already writes this line every 10 seconds', 'Fluent Bit ships it; 15 lines of Lua turn it into a metric, with the pod name');
 await hold(10);
-const k2r = await kv(R), k2b = await kv(B);
 await box(panel(20));
-await caption(`KV cache: red ${k2r}% full, blue ${k2b}%`, 'The server\'s working memory for requests in flight. Red has run out.');
-await hold(11);
+await caption('KV cache: the server\'s working memory for requests in flight', 'Watch red');
+await until(async () => (await kv(R)) > 90, 180000, 'kv>90');
+await hold(4);
+const k2r = await kv(R), k2b = await kv(B);
+await caption(`Red: ${k2r}% full, ${Math.round((Date.now() - tLoad) / 1000)} s into the load. Blue: ${k2b}%.`, 'Red has run out of room. New requests have to wait.');
+await hold(10);
 await box(panel(22));
 await caption('Cross-check: the same number from vLLM\'s own /metrics', 'The log line tells the truth');
 await hold(8);
@@ -162,6 +206,7 @@ await box(null); await next(3);
 
 // ===== Screen 3: Why was this request slow? =====
 cues.push(`${ts()}  [screen 3: Why was this request slow?]`);
+await until(async () => (await avg('request_queue_time_seconds', R)) > 3, 120000, 'queue>3');
 const qr = await avg('request_queue_time_seconds', R), ir = await avg('request_inference_time_seconds', R);
 const qb = await avg('request_queue_time_seconds', B);
 await box(panel(30));
@@ -171,7 +216,7 @@ await box(hiLine(101, 'k8s.pod.name'));
 await caption('vLLM sends a span per request. The Collector adds the pod name.', 'The app never knew its pod name');
 await hold(9);
 await box(panel(31));
-await caption('The slowest requests on red. Click one.', '', 'top');
+await caption('The slowest requests on red. Click one.', '');
 await hold(6);
 await box(null); await caption('', '');
 const first = p.locator(`${panel(31)} a`).first();
@@ -226,6 +271,33 @@ const right = p.locator('[data-testid="data-testid Panel header Graph"]').first(
 const kvNow = Math.round(await one(`max_over_time(vllm_log_kv_cache_usage_pct{pod_name="${pod}"}[5m])`));
 await box(right);
 await caption(`That pod during this request: ${Number.isFinite(kvNow) ? kvNow + '% full' : 'full'}`, 'The slow request, explained in one click');
+await hold(10);
+
+// the same request on blue, for contrast: back to screen 3 (browser Back, as on stage), click a blue trace
+await box(null); await caption('', '');
+for (let i = 0; i < 3 && !p.url().includes('gpu-walk-3'); i++) { await p.goBack().catch(() => {}); await sleep(1500); }
+if (!p.url().includes('gpu-walk-3')) await p.goto(W(3));
+await p.locator(panel(32)).waitFor({ timeout: 15000 }).catch(() => {}); await sleep(5000);
+await box(panel(32));
+await caption('Now the same kind of request on blue', 'Same model, same GPU, same traffic');
+await hold(6);
+await box(null); await caption('', '');
+const bFirst = p.locator(`${panel(32)} a`).first();
+const bTid = ((await bFirst.textContent({ timeout: 10000 }).catch(() => '')) || '').trim();
+let qBlue = NaN;
+try { const tr = (await (await fetch(`http://localhost:16686/api/traces/${bTid}`)).json()).data[0];
+      qBlue = +(tr.spans.find(s => s.operationName === 'llm_request').tags.find(t => t.key === 'gen_ai.latency.time_in_queue')?.value); } catch {}
+await clickOn(bFirst);
+await p.waitForURL(u => u.toString().includes('/explore'), { timeout: 20000 }).catch(() => {});
+await sleep(6000);
+const bRow = p.getByRole('switch', { name: /llm_request/ }).first();
+await clickOn(bRow); await sleep(1500);
+const bAttrs = p.getByText(/^Span Attributes:?$/).first();
+if (await bAttrs.count()) { await clickOn(bAttrs); await sleep(1000); }
+const bq = p.locator('tr', { hasText: 'gen_ai.latency.time_in_queue' }).first();
+if (await bq.count()) { await bq.scrollIntoViewIfNeeded().catch(() => {}); await sleep(500); await box(bq); }
+await caption(`Blue: ${Number.isFinite(qBlue) ? secs(qBlue) : 'almost nothing'} in the queue. Red: ${Number.isFinite(qSpan) ? secs(qSpan) : 'seconds'}.`,
+  'Same request. The only difference is how much room the server reserved.');
 await hold(10);
 
 // ===== Screen 4: Is 8% too low? Is 90% too high? =====

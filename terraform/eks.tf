@@ -14,8 +14,8 @@ module "eks" {
 
   # Public endpoint stays on (needed for kubectl/terraform from a laptop) but is
   # locked to the presenter IP. Nothing else in this stack is reachable from the internet.
-  cluster_endpoint_public_access       = true
-  cluster_endpoint_public_access_cidrs = var.admin_cidrs
+  cluster_endpoint_public_access           = true
+  cluster_endpoint_public_access_cidrs     = var.admin_cidrs
   enable_cluster_creator_admin_permissions = true
 
   vpc_id     = module.vpc.vpc_id

@@ -14,7 +14,7 @@ Inference Is a Black Box, KubeCon NA Observability Day, Mon 9 Nov, 25-min slot (
 | 8 | Fair experiment: SAME traffic to both pods (192 long requests each), red at 0.08 (was 0.15), user-facing number = time to first token (not average request time). |
 | 9 | Intro structure borrowed from Jimmy Song's GPU-to-token post (paradox, known-to-new bridge, buffer-pool analogy). Not named on stage; footnote on slide 3 + further-reading link. |
 
-## Measured Oct 16 (equal traffic, NVIDIA L4, opt-125m)
+## Measured Oct 16 (equal traffic, NVIDIA A10G 24 GB on g5.xlarge, opt-125m; the NodePool allows g5 or g6, so pin it before the talk)
 
 | | red 0.08 | blue 0.90 |
 |---|---|---|
@@ -35,6 +35,11 @@ in two versions recorded at the same time during the same load: captioned + spot
 
 ## 11. Who clicks (Oct 16)
 Danilo drives and talks on all 4 screens. Henrique stays on the slides laptop. No hand-offs mid-demo.
+
+## 12. Longer demo by showing more, not by waiting (Oct 16)
+About 9 min without slowing down: the load starts on camera on screen 1 (GPU memory stays flat as requests arrive),
+red's KV cache fills while screen 2 is explained, and screen 3 adds one blue trace next to the red one (queue time contrast).
+Next candidate: a green "right number" pod (screen 5), after a GPU capacity check on the rig. Supersedes "load starts at Henrique slide 1".
 
 ## Still open
 - Timed rehearsal of DEMO-SCRIPT.md (target 10 min).

@@ -36,3 +36,4 @@ demo/record/*.log
 demo/record/node_modules/
 __pycache__/
 *.pyc
+demo/record/.sync/

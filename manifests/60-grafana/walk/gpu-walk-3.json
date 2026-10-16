@@ -223,7 +223,7 @@
     {
       "id": 31,
       "type": "table",
-      "title": "Slowest requests on the red pod  \u00b7  click one",
+      "title": "Slowest requests on red  \u00b7  click one",
       "datasource": {
         "type": "jaeger",
         "uid": "jaeger"
@@ -232,7 +232,7 @@
       "gridPos": {
         "x": 9,
         "y": 14,
-        "w": 15,
+        "w": 8,
         "h": 9
       },
       "targets": [
@@ -244,6 +244,115 @@
           "refId": "A",
           "queryType": "search",
           "service": "vllm-constrained",
+          "operation": "llm_request",
+          "limit": 40
+        }
+      ],
+      "transformations": [
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Duration",
+                "desc": true
+              }
+            ]
+          }
+        },
+        {
+          "id": "limit",
+          "options": {
+            "limitField": 6
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Trace name": true,
+              "Start time": true
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "left"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Duration"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "unit",
+                "value": "\u00b5s"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 1000000
+                    },
+                    {
+                      "color": "red",
+                      "value": 3000000
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
+    {
+      "id": 32,
+      "type": "table",
+      "title": "Slowest requests on blue",
+      "datasource": {
+        "type": "jaeger",
+        "uid": "jaeger"
+      },
+      "description": "Jaeger search for this service. Click a Trace ID: the trace opens, and each span has links to this pod's GPU memory and KV cache.",
+      "gridPos": {
+        "x": 17,
+        "y": 14,
+        "w": 7,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "jaeger",
+            "uid": "jaeger"
+          },
+          "refId": "A",
+          "queryType": "search",
+          "service": "vllm-overprov",
           "operation": "llm_request",
           "limit": 40
         }

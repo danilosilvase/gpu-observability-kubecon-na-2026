@@ -3,7 +3,7 @@
 KubeCon NA 2026, Mon 9 Nov, 11:50 MST, 25 min. Henrique: slides 1-3 (about 6 min), Danilo: the demo (about 10 min), Henrique: slides 4-5.
 What to click and say, screen by screen: [DEMO-SCRIPT.md](DEMO-SCRIPT.md).
 
-**TL;DR:** live by default. The load starts when Henrique opens the talk, so it is 4-6 min old when the demo begins.
+**TL;DR:** live by default. The load starts on camera on screen 1, so the room sees GPU memory stay flat as the traffic arrives.
 Four screens, one question each: what does the GPU say, what does the server say, why was this request slow, which setting was wrong.
 The recording walks the same screens with the same clicks, in two versions: captioned, and clean (to talk over).
 
@@ -14,9 +14,9 @@ The recording walks the same screens with the same clicks, in two versions: capt
 | T-1 day | `cd terraform && terraform apply -auto-approve && ./validate.sh` | `15 passed / 0 failed` |
 | T-60 min | `export AWS_PROFILE=<admin>` then `demo/start.sh` | tunnels up, screen 4 and screen 1 open in two tabs |
 | T-60, T-5 | `demo/check.sh` | `9 OK, 0 FAIL` |
-| Henrique starts slide 1 | `demo/load.sh` | 20-min load; red's KV cache full in ~90 s |
+| On stage, screen 1 | `demo/load.sh` | 20-min load; red's KV cache full in ~60-90 s |
 | Fallback | play `deck/video/gpu-obs-demo-v7-clean.mp4` from the chapter you were on | same screens, no captions |
-| Re-record | `demo/record/record-both.sh` | both videos in ~11 min wall time: captioned ~4.5 min, clean ~6.5 min (starts the load if none) |
+| Re-record | `demo/record/record-both.sh` (rig idle 10 min first) | both videos at once; starts the load on camera |
 | After | `demo/stop.sh`, then `terraform destroy -auto-approve` | rig costs ~$2.4/hr |
 
 Your IP changed? Re-run the `printf ... > terraform.tfvars` line from the README, then `terraform apply -target=module.eks`.
@@ -28,9 +28,9 @@ Every screen: progress strip + question | config (one line highlighted) | one ch
 
 | Screen | Question | Chart | Config shown |
 |--------|----------|-------|--------------|
-| 1 | What does the GPU say? | GPU memory per pod (DCGM): flat | dcgm-exporter `--kubernetes=true` |
+| 1 | What does the GPU say? | GPU memory per pod (DCGM): flat; requests in flight (the load arriving) | dcgm-exporter `--kubernetes=true` |
 | 2 | What does the server say? | KV cache % from the vLLM log, tokens/s, /metrics cross-check | the log line + the Lua match |
-| 3 | Why was this request slow? | waiting vs on-GPU time per request, slowest red traces | Collector `k8sattributes` `k8s.pod.name` |
+| 3 | Why was this request slow? | waiting vs on-GPU time per request, slowest red and blue traces | Collector `k8sattributes` `k8s.pod.name` |
 | 4 | Is 8% too low? Is 90% too high? | verdict, GPU memory, KV peak, time to first token | our rule of thumb (>90%, <40%) |
 
 The old one-screen stage dashboard `gpu-inference-obs` and the deep dive `gpu-inference-deep` stay loaded for Q&A.
@@ -43,7 +43,7 @@ The old one-screen stage dashboard `gpu-inference-obs` and the deep dive `gpu-in
 | `deck/video/gpu-obs-demo-v7.mp4` | captions + spotlight boxes | works without a narrator: sharing, rehearsal, no-mic fallback |
 | `deck/video/CUES-v7.md` | chapter times and captions for both | find your place fast |
 
-## Numbers measured on the rig (Oct 16, NVIDIA L4, SAME traffic to both: 192 long requests each)
+## Numbers measured on the rig (Oct 16, NVIDIA A10G 24 GB on g5.xlarge, SAME traffic to both: 192 long requests each)
 
 | | constrained (0.08) | over-provisioned (0.90) |
 |--|--|--|
@@ -64,7 +64,7 @@ The Oct 15 v6 numbers (0.15, unequal traffic, 12 s vs 0.13 s) are retired: the g
 - [ ] Two tabs: screen 4, then screen 1 (active). Kiosk, browser zoom 100%, phone hotspot (not venue Wi-Fi).
 - [ ] Logged into Grafana (admin / gpu-obs-demo).
 - [ ] Clean video open in QuickTime, paused at 0:00, on the same laptop.
-- [ ] Nobody has run a load in the last 10 min (screen 1 should show idle, then the load starting during Henrique's slides).
+- [ ] Nobody runs a load after T-15 (screen 1 must start idle). Terminal ready with `demo/load.sh` typed.
 
 ## Risks
 

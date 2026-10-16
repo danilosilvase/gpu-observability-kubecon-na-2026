@@ -2,28 +2,22 @@
 # Records the backup video twice, at the same time, during the same load:
 #   gpu-obs-demo-v7.mp4        captions + spotlight boxes (works without a narrator)
 #   gpu-obs-demo-v7-clean.mp4  same clicks and timing, no overlays (talk over it live)
-# Same 4 screens (gpu-walk-1..4) and same load as the live demo. Needs demo/start.sh tunnels, Chrome,
-# `npm i playwright` in this folder, ffmpeg.  WARMUP = seconds of load before recording starts (live: 4-6 min).
+# Same 4 screens (gpu-walk-1..4), same clicks and same on-camera load start as the live demo (DEMO-SCRIPT.md).
+# Needs demo/start.sh tunnels, Chrome, `npm i playwright` in this folder, ffmpeg, and an IDLE rig: no load in the
+# last 10 min, so screen 1 shows idle and then the load arriving. The captioned run starts the load itself.
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"; REPO="$HERE/../.."; cd "$HERE"
-WARMUP="${WARMUP:-240}"; VID="$REPO/deck/video"
-mkdir -p "$VID"
+VID="$REPO/deck/video"; mkdir -p "$VID"
 PACE_FX="${PACE_FX:-1.2}"; PACE_CLEAN="${PACE_CLEAN:-1.8}"   # clean is slower: room to talk (and pause)
 for u in localhost:3000/api/health localhost:9090/-/ready localhost:16686/; do
   curl -s -m 5 -o /dev/null "http://$u" || { echo "tunnel down: $u (run demo/start.sh)"; exit 1; }; done
+[ "$(kubectl --request-timeout=20s -n inference get job vllm-loadgen -o jsonpath='{.status.active}' 2>/dev/null)" = 1 ] && {
+  echo "a load is running: demo/stop.sh, then wait 10 min so screen 1 starts idle"; exit 1; }
 
-start=$(kubectl --request-timeout=20s -n inference get job vllm-loadgen -o jsonpath='{.status.startTime}' 2>/dev/null || true)
-if [ -z "$start" ] || [ "$(kubectl --request-timeout=20s -n inference get job vllm-loadgen -o jsonpath='{.status.active}')" != "1" ]; then
-  "$REPO/demo/load.sh"; start=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-fi
-s=$(date -ju -f %Y-%m-%dT%H:%M:%SZ "$start" +%s 2>/dev/null || date -u -d "$start" +%s 2>/dev/null || echo 0)   # macOS, then GNU
-[ "$s" = 0 ] && { echo "cannot parse load start time: $start"; exit 1; }
-age=$(( $(date -u +%s) - s ))
-[ "$age" -gt 540 ] && { echo "load is ${age}s old; the recording needs ~10 min of it. Restart: demo/load.sh"; exit 1; }
-[ "$age" -lt "$WARMUP" ] && { echo "load is ${age}s old, waiting $((WARMUP - age))s"; sleep $((WARMUP - age)); }
-
-CLEAN=0 PACE=$PACE_FX    OUT=out-fx    node record.mjs > out-fx.log 2>&1 &   fx=$!
-CLEAN=1 PACE=$PACE_CLEAN OUT=out-clean node record.mjs > out-clean.log 2>&1 & cl=$!
+rm -rf .sync
+SYNC=.sync START_LOAD=1 CLEAN=0 PACE=$PACE_FX    OUT=out-fx    node record.mjs > out-fx.log 2>&1 &   fx=$!
+SYNC=.sync START_LOAD=0 CLEAN=1 PACE=$PACE_CLEAN OUT=out-clean node record.mjs > out-clean.log 2>&1 & cl=$!
+# SYNC: both start recording together; steps before the load use fixed timing, so both see it start at the same second
 rc=0; wait $fx || rc=$?; wait $cl || rc=$?
 [ $rc -eq 0 ] || { tail -5 out-fx.log out-clean.log; exit $rc; }
 for v in fx:gpu-obs-demo-v7 clean:gpu-obs-demo-v7-clean; do

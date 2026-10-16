@@ -128,7 +128,7 @@
         "x": 9,
         "y": 3,
         "w": 15,
-        "h": 20
+        "h": 14
       },
       "fieldConfig": {
         "defaults": {
@@ -199,6 +199,117 @@
           "legendFormat": "{{exported_pod}}"
         }
       ]
+    },
+    {
+      "id": 11,
+      "type": "stat",
+      "title": "Requests in flight per pod  \u00b7  running + waiting  \u00b7  vLLM",
+      "description": "Same traffic to both pods: 192 long requests each, all the time.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 9,
+        "y": 17,
+        "w": 15,
+        "h": 6
+      },
+      "interval": "5s",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A",
+          "expr": "sum by (pod) (vllm:num_requests_running{pod=~\"$pod\", pod=~\"vllm-constrained.*\"} + vllm:num_requests_waiting{pod=~\"$pod\", pod=~\"vllm-constrained.*\"})",
+          "legendFormat": "{{pod}}"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "B",
+          "expr": "sum by (pod) (vllm:num_requests_running{pod=~\"$pod\", pod=~\"vllm-overprov.*\"} + vllm:num_requests_waiting{pod=~\"$pod\", pod=~\"vllm-overprov.*\"})",
+          "legendFormat": "{{pod}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "noValue": "No traffic",
+          "min": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "decimals": 0,
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "No traffic",
+                  "index": 0
+                }
+              }
+            }
+          ]
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*constrained.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*overprov.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "value_and_name",
+        "justifyMode": "center",
+        "orientation": "horizontal",
+        "wideLayout": true,
+        "text": {
+          "titleSize": 18,
+          "valueSize": 64
+        },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
     },
     {
       "id": 102,

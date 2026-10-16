@@ -65,7 +65,10 @@ s1 = walk(1, "gpu-walk-1", "1 · What does the GPU say?", "What does the GPU say
         "dcgm-exporter asks the kubelet which pod owns each GPU, so every GPU metric carries the <b>pod name</b>."),
     [ts(10, "GPU memory in use, per pod  ·  DCGM_FI_DEV_FB_USED", "",
         [{"expr": 'DCGM_FI_DEV_FB_USED{exported_pod=~"$pod"}', "legendFormat": "{{exported_pod}}"}],
-        9, 3, 15, 20, "decmbytes", 0, 24576)],
+        9, 3, 15, 14, "decmbytes", 0, 24576),
+     big(11, "Requests in flight per pod  ·  running + waiting  ·  vLLM", "Same traffic to both pods: 192 long requests each, all the time.",
+         'sum by (pod) (vllm:num_requests_running{pod=~"$pod"} + vllm:num_requests_waiting{pod=~"$pod"})', "{{pod}}",
+         9, 17, 15, 6, "none", decimals=0, zero_text="No traffic")],
     f'The chart we page on: {red("red 2 GB")}, {blue("blue 20.6 GB")}. Flat under load. It cannot tell you which one is in trouble.')
 
 # ---- 2 Log: what the server says ----
@@ -115,7 +118,8 @@ s3 = walk(3, "gpu-walk-3", "3 · Why was this request slow?", "Why was this requ
         ("    pod_association:", False),
         ("      - sources: [{from: connection}]", False)],
         "vLLM sends a span per request. The Collector adds the <b>pod name</b>. Grafana uses it to jump from a trace to that pod's metrics."),
-    [split, traces(31, "Slowest requests on the red pod  ·  click one", "vllm-constrained", 9, 14, 15, 9)],
+    [split, traces(31, "Slowest requests on red  ·  click one", "vllm-constrained", 9, 14, 8, 9),
+     traces(32, "Slowest requests on blue", "vllm-overprov", 17, 14, 7, 9)],
     f'{red("Red")}: most of each request is spent <b>waiting in line</b>, not on the GPU. One click shows why.')
 
 # ---- 4 Answer: which one was set wrong? ----

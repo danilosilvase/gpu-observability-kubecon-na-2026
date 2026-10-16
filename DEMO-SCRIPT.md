@@ -1,19 +1,19 @@
 # Demo script (v7): 4 screens, about 10 minutes
 
-Same 4 screens, same load, same clicks whether it runs live or from the recording.
+Same 4 screens, same load, same clicks whether it runs live or from the recording. The load starts on camera, on screen 1.
 Screens: `gpu-walk-1` to `gpu-walk-4` (Grafana, kiosk). Each screen has the same layout:
 progress strip and question at the top, the config that makes it work on the left (one line highlighted),
 one chart on the right (red vs blue), one sentence at the bottom. The orange **Next** button (top right) goes to the next screen.
 
-Red = `vllm-constrained` (`--gpu-memory-utilization=0.08`). Blue = `vllm-overprov` (0.90). Same model, same GPU (NVIDIA L4), same traffic.
+Red = `vllm-constrained` (`--gpu-memory-utilization=0.08`). Blue = `vllm-overprov` (0.90). Same model, same GPU type (NVIDIA A10G, 24 GB, g5.xlarge; one per pod), same traffic.
 
 ## Before the demo
 
 | When | Who | Do |
 |------|-----|----|
 | T-60 | Danilo | `demo/start.sh` (tunnels, opens screen 4 then screen 1 in two tabs; does not start the load), then `demo/check.sh` = 9 OK |
-| T-5 | Danilo | `demo/check.sh` again. Clean video open in QuickTime, paused at 0:00 |
-| Henrique starts slide 1 (the vote) | Danilo | `demo/load.sh` (silent, laptop side). The load must be 4-6 min old when the demo starts: red's KV cache fills in ~90 s and screen 4 reads the last 3 min |
+| T-15 | Danilo | no load from now on: screen 1 must start idle (the charts show the last 10 min) |
+| T-5 | Danilo | `demo/check.sh` again. Clean video open in QuickTime, paused at 0:00. A terminal in the repo, `demo/load.sh` typed, not run |
 | Henrique ends slide 3 | Danilo | switch the projector to Grafana, screen 1 |
 
 ## Screen 1: What does the GPU say? (0:00-2:00)
@@ -21,8 +21,10 @@ Red = `vllm-constrained` (`--gpu-memory-utilization=0.08`). Blue = `vllm-overpro
 | Point at | Say |
 |----------|-----|
 | highlighted `--kubernetes=true` | "One flag. The GPU exporter asks the kubelet which pod owns each GPU, so every GPU metric carries the pod name." |
-| the chart | "This is the chart we page on. Red uses 2 GB, blue 20.6. The load started five minutes ago, while Henrique was talking. Neither line moved." |
-| the sentence | "So which one is in trouble? This chart can't tell you." |
+| the chart | "This is the chart we page on. No traffic yet. Red reserved 8% of the GPU, 2 GB. Blue reserved 90%, 20.6." |
+| press Enter on `demo/load.sh` | "Now the same traffic to both: 192 long requests each, all the time." |
+| requests-in-flight tile | "Requests arrive. Same number in flight on both pods." |
+| the chart again | "Under load: not a wiggle. So which one is in trouble? This chart can't tell you." |
 | click **Next** | |
 
 ## Screen 2: What does the server say? (2:00-4:30)
@@ -30,7 +32,7 @@ Red = `vllm-constrained` (`--gpu-memory-utilization=0.08`). Blue = `vllm-overpro
 | Point at | Say |
 |----------|-----|
 | highlighted log line | "vLLM already writes this line every 10 seconds. Fluent Bit ships it, 15 lines of Lua turn it into a metric, with the pod name." |
-| KV cache chart | "KV cache: the server's working memory for requests in flight. Red is at 100%. Blue uses about a third." |
+| KV cache chart (red climbs while you talk, full ~60-90 s after the load) | "KV cache: the server's working memory for requests in flight. Watch red... full. Blue uses about a third." |
 | cross-check tile | "Same number from vLLM's own /metrics. The log tells the truth." |
 | tokens/s tile | "Same traffic to both. Red makes fewer tokens per second." |
 | click **Next** | |
@@ -45,6 +47,7 @@ Red = `vllm-constrained` (`--gpu-memory-utilization=0.08`). Blue = `vllm-overpro
 | click the `llm_request` row, then **Span Attributes** | "vLLM's own timing: this one waited over 6 seconds in the queue before the GPU touched it." |
 | click **Resource Attributes**, point at `k8s.pod.name` | "And here is the pod name, on the request." |
 | click the link icon on `llm_request`, then **This pod: how full it was** | "One click from this request to that pod: 100% full while it waited." |
+| browser Back (Cmd+[) twice, to screen 3, click the top Trace ID in **Slowest requests on blue**, then `llm_request`, **Span Attributes** | "Same kind of request on blue: a few milliseconds in the queue. Same model, same GPU, same traffic. The only difference is how much room the server reserved." |
 | Ctrl+Shift+Tab: the tab before is screen 4 (`demo/start.sh` opens it first). Explore has no Next button | |
 
 ## Screen 4: Is 8% too low? Is 90% too high? (8:00-10:00)
@@ -66,4 +69,4 @@ Chapter times are in [the cue sheet](deck/video/CUES-v7.md). The captioned versi
 | A chart says "No data" | load not running: `demo/load.sh` and keep talking about the config; or the video |
 | Trace click slow (> 5 s) | `demo/trace.sh`, or skip to the video chapter "screen 3" |
 | Grafana logged out or blank | the video |
-| Load older than 18 min | it ends at 20 min: restart `demo/load.sh` (red refills in ~90 s) |
+| Red not full after 2 min on screen 2 | keep talking about the config, it gets there; or the video, chapter "screen 2" |

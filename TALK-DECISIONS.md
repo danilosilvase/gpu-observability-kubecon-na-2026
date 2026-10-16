@@ -69,6 +69,12 @@ Henrique: "Danilo, which one is in trouble?". Out of the demo: Cmd+Tab straight 
 Hidden backup slide after the bridge: static screen-4 image (verdict, 2.0/20.6 GB, 100%/31%, 5.9 s/0.08 s).
 S8. Title slide: accepted abstract title verbatim. Henrique Santana, Principal Cloud Engineer, AWS; Danilo Silva, Senior
 Delivery Consultant, AWS. No logos. TODO Henrique: Sessionize still says "Danilo Souza", fix to Danilo Silva.
+S9. Speaker notes = short cues + timing + click counts. Budget: title 0:00, vote 0:30, S2 2:00, S3 3:30, demo 6:00-15:00,
+what broke 15:00, take home 17:30, Q&A 19:30 (5:30). Native PowerPoint animations on every slide, fade transitions.
+S10. "Take this home" (S5) split into three animated slides, 2:00 total: 5a "Who voted both? You were right." (Pod A too small,
+Pod B too big, takeaway), 5b "Three lines of config, one join key" (dcgm / Fluent Bit / OTel cards, arrows converge on pod name),
+5c "Size it from peak KV cache" (gauge 0-40 too big / 40-90 about right / 90+ too small, Pod A lands at 100%, Pod B at ~30%,
+rule of thumb is ours, repo QR).
 
 ## Still open
 - Timed rehearsal of DEMO-SCRIPT.md (target 10 min).

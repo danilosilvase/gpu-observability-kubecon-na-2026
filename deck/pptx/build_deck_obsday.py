@@ -109,7 +109,13 @@ def _insert(s, el, before_timing=False):
     anchor = tim if (before_timing and tim is not None) else ext
     (anchor.addprevious(el) if anchor is not None else sld.append(el))
 
-def foot(s, t): text(s, 0.6, 6.95, 12.0, 0.4, t, size=11, color=GREY)
+def foot(s, t): text(s, 0.6, 6.95, 11.5, 0.4, t, size=11, color=GREY)
+def slide_no(s, n):
+    """Live slide-number field, bottom right (updates itself if slides move)."""
+    tb = s.shapes.add_textbox(I(12.15), I(6.92), I(0.75), I(0.4)); tf = tb.text_frame; tf.margin_right = I(0.02)
+    p = tf.paragraphs[0]; p.alignment = PP_ALIGN.RIGHT
+    p._p.append(etree.fromstring(f'<a:fld {NS} id="{{B6F15528-21DE-4FAA-801E-634DDDAF4B{n:02d}}}" type="slidenum"><a:rPr lang="en-US" sz="1200" b="1">'
+                                 f'<a:solidFill><a:srgbClr val="{MAG}"/></a:solidFill><a:latin typeface="Arial"/></a:rPr><a:t>{n}</a:t></a:fld>'))
 
 # ---------- 0 cover (template), 1 title (template slide, retexted) ----------
 cover, title_s = prs.slides[2], prs.slides[3]
@@ -511,6 +517,8 @@ code_card(s, 6.75, 4.0, 6.0, 2.5, "The fix we ship", ["--kubernetes=true", "..._
 ids = prs.slides._sldIdLst; items = list(ids)
 for el in (items[0], items[1], items[4]):              # AV instructions x2, sample "Title / Content"
     prs.part.drop_rel(el.rId); ids.remove(el)
+for k, sl in enumerate(prs.slides, 1):
+    if sl.slide_layout == L_BODY: slide_no(sl, k)
 for sl in prs.slides: fade_transition(sl)
 sys.path.insert(0, HERE); from notes_obsday import NOTES
 assert len(prs.slides) == len(NOTES), (len(prs.slides), len(NOTES))

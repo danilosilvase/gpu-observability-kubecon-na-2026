@@ -125,9 +125,6 @@ for sh in title_s.shapes:
         tf.paragraphs[0].runs[0].font.size = Pt(26)
         p = tf.add_paragraph(); r = p.add_run(); r.text = "Danilo Silva, Senior Delivery Consultant, AWS"
         r.font.size, r.font.italic, r.font.name, r.font.color.rgb = Pt(26), True, "Arial", rgb(WHITE)
-notes(title_s, "0:00 (0:30) HENRIQUE\n- Hi, I'm Henrique; this is Danilo.\n- 20 minutes, one question, a live demo, then questions.\n"
-      "- (Danilo: terminal open with demo/load.sh typed, not run. Grafana screen 1 in the next app.)")
-notes(cover, "Walk-in slide. Up while people sit down.")
 
 # ---------- slide 1: the vote ----------
 s = body_slide("Which one is in trouble?")
@@ -148,9 +145,6 @@ for i, opt in enumerate(("8%", "90%", "both", "can't tell from here")):
 vote = since(s, m2)
 animate(s, [("click", [(cardsA[0], "up", 0, 500)]), ("click", [(cardsA[1], "up", 0, 500)]),
             ("click", [(vote[:1], "fade", 0, 300)] + [(vote[i:i + 2], "zoom", 180, 350) for i in range(1, len(vote), 2)])])
-notes(s, "0:30 (1:30) HENRIQUE  [3 clicks: Pod A, Pod B, the vote]\n- Say exactly: \"Two vLLM pods. Same model, same GPU type, same traffic. One reserved 8% of GPU memory, "
-      "the other 90%. Which one is in trouble?\"\n- Hands up for each option. Count roughly out loud.\n"
-      "- Do NOT reveal. \"Hold that. Danilo will answer it live.\"\n- This is a test cluster we built for this talk: say it now.")
 
 # ---------- slide 2: a setting, not a signal ----------
 s = body_slide("GPU memory is a setting, not a signal")
@@ -187,8 +181,6 @@ animate(s, [("click", [(four[i:i + 3], "up", 150, 400) for i in range(0, 12, 3)]
             ("click", [(marker, "fade", 0, 300)]), ("auto", [(flat_lbl, "fade", 0, 400)]),
             ("click", [(sentence2, "fade", 0, 500)])])
 foot(s, "vLLM default: gpu_memory_utilization = 0.92 (vllm/config/cache.py, vLLM main, Oct 2026)")
-notes(s, "2:00 (1:30) HENRIQUE  [4 clicks: the four tiles, GPU memory draws, load starts (line does not move), the sentence]\n- The four we all watch measure resources. Fine, but none of them sees the server's queue.\n"
-      "- GPU memory: vLLM takes 92% at startup by default. After that it does not move.\n- Say: \"GPU memory is a setting, not a signal.\"")
 
 # ---------- slide 3: the connection pool ----------
 s = body_slide("What runs out first: room for requests in flight")
@@ -238,9 +230,6 @@ animate(s, [("click", [(gpu_bar[:1], "fade", 0, 300)] + [(gpu_bar[i:i + 2], "wip
             ("click", [(queue[:1], "wipe", 300, 300)] + [([q], "zoom", 420, 300) for q in queue[1:6]] + [(queue[6:], "fade", 0, 300)]),
             ("click", [(table_, "fade", 0, 500)]), ("click", [(punch3, "up", 0, 500)])])
 foot(s, "Intro structure inspired by Jimmy Song, jimmysong.io/blog/gpu-to-token-observability")
-notes(s, "3:30 (2:30) HENRIQUE  [5 clicks: the GPU, the pool fills, the queue grows, the table, the punchline]\n- Most of that 92% is the KV cache: the server's working memory for requests in flight.\n"
-      "- Think connection pool: you set its size, requests hold a slot, when it is full new ones wait. Latency climbs, nothing else looks wrong.\n"
-      "- vLLM prints how full it is every 10 s in a log line you already ship.\n- No pod named here: the demo answers the vote.")
 
 # ---------- bridge + hidden backup ----------
 s = prs.slides.add_slide(L_TITLE)
@@ -258,15 +247,10 @@ groups = []; i = 0
 while i < len(strip):                                    # box + label (+ arrow) per step
     k = 3 if i + 3 < len(strip) else 2; groups.append(strip[i:i + k]); i += k
 animate(s, [("auto", [(g, "up", 350, 400) for g in groups])])
-notes(s, "6:00 (9:00) [strip builds by itself] HENRIQUE hands over: \"Danilo, which one is in trouble?\"\nDANILO\n- Cmd+Tab to Grafana screen 1. Terminal has demo/load.sh typed.\n"
-      "- Script: DEMO-SCRIPT.md. Same strip on every screen: 1 GPU > 2 Log > 3 Trace > 4 Answer.\n"
-      "- Rig dead? Clean video (gpu-obs-demo-v8-clean.mp4) on this laptop, Space to pause, keep the same lines.\n"
-      "- Out: after screen 4, Cmd+Tab back here and advance to slide 4.")
 s = body_slide("Backup: what screen 4 showed (recorded 16 Oct)")
 s._element.set("show", "0")
 s.shapes.add_picture(A("backup-screen4.png"), I(1.17), I(1.25), height=I(5.6))
 foot(s, "Hidden slide. Only if the rig is down AND the video will not play.")
-notes(s, "HIDDEN. Red (8%): memory-constrained, 2.0 GB, 100% KV, 5.9 s to first token. Blue (90%): over-provisioned, 20.6 GB, 30%, 80 ms.")
 
 # ---------- slide 4: what broke ----------
 s = body_slide("What broke while we built it")
@@ -288,11 +272,9 @@ for i, (n, saw, lr) in enumerate(stories):
     text(s, 2.9, y, 4.6, 1.3, saw, size=17, color=INK, anchor=MSO_ANCHOR.MIDDLE)
     text(s, 7.75, y, 4.85, 1.3, lr, size=17, color=INK, anchor=MSO_ANCHOR.MIDDLE)
     rows4.append(since(s, m1))
+foot(s, "Test cluster: vLLM v0.30.0, facebook/opt-125m, one A10G per pod. Cardinality: 7 DCGM counters x 2 GPUs, measured 13 Oct 2026.")
 animate(s, [("click", [(hdr, "fade", 0, 300), (rows4[0], "up", 0, 450)]), ("click", [(rows4[1], "up", 0, 450)]),
             ("click", [(rows4[2], "up", 0, 450)])])
-notes(s, "15:00 (2:30) HENRIQUE  [3 clicks, one story each]\n- Open: \"Our first load test didn't stress anything.\" It took unique prompts to make it struggle, and the GPU dashboard never noticed either way.\n"
-      "- Cardinality: promised in the abstract. 14 live, 56 after 3 rollouts.\n"
-      "- CUT RULE: if this slide starts after 16:30, skip \"An unfair test\".")
 
 # ---------- slides 5a-5c: take this home (S10: three slides, animated) ----------
 GREEN, ORANGE, PURPLE, DARK = "2E9E5B", "E8871E", "7B4FBF", "333338"
@@ -320,13 +302,11 @@ m = mark(s)
 text(s, 0.6, 5.45, 12.1, 1.3, [[("GPU memory can't tell you an inference server is in trouble. ", {"bold": True}),
      ("Read the server's own signal.", {"color": MAG, "bold": True})]], size=28, color=INK)
 take5a = since(s, m)
+foot(s, "Measured 16 Oct 2026, our test cluster: vLLM v0.30.0, facebook/opt-125m (a small model), one A10G per pod, same traffic to both.")
 animate(s, [("auto", [(cards5a[0] + cards5a[1], "fade", 0, 400)]),
             ("click", [(verdicts[0][:2], "zoom", 0, 400), (verdicts[0][2:], "up", 0, 450)]),
             ("click", [(verdicts[1][:2], "zoom", 0, 400), (verdicts[1][2:], "up", 0, 450)]),
             ("click", [(take5a, "fade", 0, 500)])])
-notes(s, "17:30 (0:30) HENRIQUE  [cards come in by themselves; 3 clicks: Pod A verdict, Pod B verdict, the takeaway]\n"
-      "- Say: \"Who voted both? You were right.\"\n- Too small: the queue. Too big: memory you paid for and never used.\n"
-      "- Takeaway line, word for word.")
 
 # 5b: three lines of config, one join key
 s = body_slide("Three lines of config, one join key")
@@ -354,10 +334,9 @@ text(s, NX - NR, NY + 0.05, 2 * NR, 0.4, "k8s.pod.name", size=12, font="Consolas
 node = since(s, m); m = mark(s)
 text(s, 8.7, 5.5, 3.2, 1.0, "GPU, log and trace for the same pod, on one screen", size=15, color=INK, align=PP_ALIGN.CENTER)
 node_cap = since(s, m)
+foot(s, "Tested: dcgm-exporter 4.8.4, Fluent Bit 5.1.3, OTel Collector contrib 0.111.0. vLLM also exports KV cache % on /metrics; "
+        "the log path works for servers that only log it.")
 animate(s, steps5b + [("click", [(node, "zoom", 0, 450)]), ("auto", [(node_cap, "fade", 0, 400)])])
-notes(s, "18:00 (0:45) HENRIQUE  [4 clicks: dcgm, Fluent Bit, OTel, the join]\n- One line per tool, nothing exotic.\n"
-      "- The trick is the join: every signal has the pod name on it. That is what let Danilo go from the GPU to the log to the trace.\n"
-      "- Pod name on GPU metrics is also the cardinality cost from the last slide.")
 
 # 5c: the rule of thumb, on a gauge
 s = body_slide("Size it from peak KV cache")
@@ -388,18 +367,23 @@ for p, col, lbl, al, lx in ((100, RED, "Pod A (8%): peak 100%", PP_ALIGN.RIGHT, 
     tri = box(s, min(px(p), px(100) - 0.08) - 0.17, 2.32, 0.34, 0.36, fill=col, line=None, shape=MSO_SHAPE.ISOSCELES_TRIANGLE)
     tri.rotation = 180
     pins.append(since(s, m))
+steps5c = []
+for k, (head, sub) in enumerate((("Measure", [("peak KV cache under your own traffic", {})]),
+                                 ("Change", [("--gpu-memory-utilization", {"font": "Consolas", "size": 12})]),
+                                 ("Measure again", [("until the peak sits between 40 and 90%", {})]))):
+    m = mark(s); x = 0.6 + k * 3.4
+    text(s, x, 5.0, 0.55, 0.9, str(k + 1), size=40, bold=True, color=MAG, spacing=0.9)
+    text(s, x + 0.55, 5.05, 2.75, 0.95, [[(head, {"bold": True})], sub], size=16, color=INK)
+    steps5c += [(since(s, m), "up", 300, 400)]
 m = mark(s)
-text(s, 0.6, 5.2, 10.2, 1.0, [[("Rule of thumb, ours, not vLLM's.", {"bold": True})],
-     [("Measure peak KV cache. Change ", {}), ("--gpu-memory-utilization", {"font": "Consolas", "size": 16}), (". Measure again.", {})]], size=18, color=INK)
-text(s, 0.6, 6.3, 9.8, 0.45, REPO, size=18, bold=True, color=MAG, font="Consolas")
+text(s, 0.6, 6.05, 10.0, 0.4, "Caveat: 40% and 90% are our rule of thumb, from one model on one GPU type. Use the method, not our numbers.",
+     size=13, italic=True, color=GREY)
+text(s, 0.6, 6.5, 10.0, 0.45, REPO, size=17, bold=True, color=MAG, font="Consolas")
 s.shapes.add_picture(A("qr-repo.png"), I(11.05), I(4.95), height=I(1.65))
 text(s, 10.6, 6.62, 2.55, 0.4, "All configs, deployable", size=12, bold=True, color=INK, align=PP_ALIGN.CENTER)
 rule5c = since(s, m)
 animate(s, [("click", band_steps), ("click", [(pins[0], "up", 0, 450)]), ("click", [(pins[1], "up", 0, 450)]),
-            ("click", [(rule5c, "fade", 0, 500)])])
-notes(s, "18:45 (0:45) HENRIQUE  [4 clicks: the gauge, Pod A lands, Pod B lands, rule + repo]\n"
-      "- Watch peak KV cache under your traffic, not GPU memory.\n- Pod A ran out of room. Pod B paid for room it never used.\n"
-      "- Say it is our rule of thumb, not vLLM's. Everything is in the repo (QR).")
+            ("click", steps5c), ("auto", [(rule5c, "fade", 0, 500)])])
 
 # ---------- slide 6: questions ----------
 s = prs.slides.add_slide(L_TITLE)
@@ -412,13 +396,74 @@ text(s, 0.8, 4.4, 7.6, 1.8, [[("Original idea: ", {"bold": True}), ("[original a
 box(s, 9.1, 2.3, 3.4, 3.4, fill=WHITE, line=None, radius=0.04)
 s.shapes.add_picture(A("qr-feedback-cncf.png"), I(9.18), I(2.36), height=I(3.28))   # official session feedback code (organisers)
 text(s, 9.1, 5.8, 3.4, 0.5, "Rate this session", size=18, bold=True, color=WHITE, align=PP_ALIGN.CENTER)
-notes(s, "19:30 (5:30) BOTH\n- Leave this up for all of Q&A (feedback QR).\n- Q&A backups: deep-dive dashboard gpu-inference-deep (cardinality panel), hidden backup slide.\n"
-      "- TODO before the talk: replace [original author].")
+
+
+# ---------- hidden Q&A backups (after Questions; jump with number + Enter) ----------
+def qa_slide(q, answer, src):
+    s = body_slide(q); s._element.set("show", "0")
+    text(s, 0.6, 1.25, 4.3, 0.4, "Q&A BACKUP", size=13, bold=True, color=MAG)
+    text(s, 0.6, 1.7, 5.6, 4.9, answer, size=19, color=INK, spacing=1.15)
+    foot(s, src); return s
+def code_card(s, x, y, w, h, label, lines, col):
+    box(s, x, y, w, h, fill=WHITE, line=LINE); box(s, x, y, 0.12, h, fill=col, line=None, shape=MSO_SHAPE.RECTANGLE)
+    text(s, x + 0.3, y + 0.12, w - 0.4, 0.4, label, size=15, bold=True, color=INK)
+    box(s, x + 0.3, y + 0.6, w - 0.5, h - 0.75, fill=CODEBG, line=None, radius=0.05)
+    text(s, x + 0.4, y + 0.6, w - 0.7, h - 0.75, lines, size=13, font="Consolas", color=INK, anchor=MSO_ANCHOR.MIDDLE, spacing=1.0)
+
+s = qa_slide("Why parse the log if vLLM has /metrics?",
+    [[("Scrape /metrics if you can. ", {"bold": True}), ("We do too: demo screen 2 puts both side by side, and they match.", {})], "",
+     [("The log path needs no new scrape target. ", {"bold": True}), ("Fluent Bit already reads every pod's log.", {})], "",
+     [("It works on any server that prints its cache usage, ", {}), ("even one that does not export it.", {"bold": True})]],
+    "README.md; dashboard gpu-walk-2 (log_kv_cache_usage_pct vs vllm:kv_cache_usage_perc). The log line comes every 10 s, coarser than a scrape.")
+code_card(s, 6.75, 1.95, 6.0, 1.75, "vLLM /metrics", ["vllm:kv_cache_usage_perc"], DARK)
+code_card(s, 6.75, 3.85, 6.0, 1.65, "vLLM log line, every 10 s", ["... GPU KV cache usage: 99.6%, ..."], ORANGE)
+text(s, 6.75, 5.65, 6.0, 0.6, "Same number, two paths.", size=22, bold=True, color=MAG, align=PP_ALIGN.CENTER)
+
+s = qa_slide("Why not set 0.90 everywhere?",
+    [[("The default is already 0.92.", {"bold": True})], "",
+     [("One pod, one GPU, nothing else on it: ", {}), ("0.90 is fine.", {"bold": True}), (" You paid for headroom.", {})], "",
+     [("Shared GPUs: ", {"bold": True}), ("the memory is reserved at startup, used or not. It is what the next pod needs.", {})]],
+    "vllm/config/cache.py (default 0.92); 16 Oct 2026 recording. Sharing needs time-slicing, MPS or MIG; not tested on this rig.")
+text(s, 6.75, 1.95, 6.0, 0.4, "Pod B, 90%: 20.6 GB reserved", size=17, bold=True, color=BLUE)
+box(s, 6.75, 2.45, 6.0, 1.0, fill=LIGHT, line=BLUE, shape=MSO_SHAPE.RECTANGLE, lw=2)
+box(s, 6.75, 2.45, 1.8, 1.0, fill=BLUE, line=None, shape=MSO_SHAPE.RECTANGLE)
+text(s, 6.75, 2.45, 1.8, 1.0, "used ~30%", size=15, bold=True, color=WHITE, align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
+text(s, 8.55, 2.45, 4.2, 1.0, "reserved, never used", size=16, color=GREY, align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
+text(s, 6.75, 3.7, 6.0, 1.2, "Size from the peak. Give the rest back.", size=22, bold=True, color=MAG)
+
+s = qa_slide("What about GPU utilisation?",
+    [[("GPU_UTIL = share of time at least one kernel ran.", {"bold": True})], "",
+     [("One busy kernel reads as 100%. Waiting on memory looks the same as flat out.", {})], "",
+     [("Profiling fields say more. ", {"bold": True}), ("None of them knows about the queue.", {})]],
+    "NVML nvmlUtilization_t; manifests/10-gpu-metrics/dcgm-exporter.yaml (scraped on the A10G). Profiling fields need GPU and driver support.")
+rows_u = (("DCGM_FI_DEV_GPU_UTIL", "a kernel ran"), ("DCGM_FI_PROF_SM_ACTIVE", "share of SMs working"),
+          ("DCGM_FI_PROF_DRAM_ACTIVE", "memory bus busy"), ("the server's queue", "none of the above"))
+for r, (f, d) in enumerate(rows_u):
+    y = 1.95 + r * 0.95; last = r == 3
+    box(s, 6.75, y, 6.0, 0.8, fill=MAG if last else (LIGHT if r % 2 == 0 else WHITE), line=LINE)
+    text(s, 6.9, y, 3.4, 0.8, f, size=14 if not last else 16, font="Arial" if last else "Consolas", bold=last,
+         color=WHITE if last else INK, anchor=MSO_ANCHOR.MIDDLE)
+    text(s, 10.3, y, 2.4, 0.8, d, size=15, color=WHITE if last else GREY, bold=last, anchor=MSO_ANCHOR.MIDDLE)
+
+s = qa_slide("How much does the pod name cost?",
+    [[("One new set of series per pod restart.", {"bold": True})], "",
+     [("Keep the pod name: it is the join key.", {})], "",
+     [("Drop what churns: ", {"bold": True}), ("no pod labels, a short counter list, short retention for per-pod data.", {})]],
+    "manifests/50-prometheus/CARDINALITY-DEMO.md, measured 13 Oct 2026: 7 counters x 2 GPUs. Default counter set is about 40.")
+for k, (num, lbl) in enumerate((("14", "series now"), ("56", "after 3 rollouts"))):
+    x = 6.75 + k * 3.1
+    box(s, x, 1.95, 2.9, 1.8, fill=WHITE, line=MAG if k else LINE, lw=3 if k else 1.5)
+    text(s, x, 2.0, 2.9, 1.1, num, size=60, bold=True, color=MAG if k else INK, align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
+    text(s, x, 3.1, 2.9, 0.5, lbl, size=16, color=GREY, align=PP_ALIGN.CENTER)
+code_card(s, 6.75, 4.0, 6.0, 2.5, "The fix we ship", ["--kubernetes=true", "..._ENABLE_POD_LABELS=false", "counters.csv: 7 counters", "retention: 6h"], MAG)
 
 # ---------- order: drop template instruction + sample slides, keep cover + title first ----------
 ids = prs.slides._sldIdLst; items = list(ids)
 for el in (items[0], items[1], items[4]):              # AV instructions x2, sample "Title / Content"
     prs.part.drop_rel(el.rId); ids.remove(el)
 for sl in prs.slides: fade_transition(sl)
+sys.path.insert(0, HERE); from notes_obsday import NOTES
+assert len(prs.slides) == len(NOTES), (len(prs.slides), len(NOTES))
+for k, sl in enumerate(prs.slides, 1): notes(sl, NOTES[k])
 out = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, "..", "kubecon-obsday-2026.pptx")
 prs.save(out); print("saved", out, len(prs.slides), "slides")

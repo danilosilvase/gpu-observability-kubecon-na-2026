@@ -2,7 +2,7 @@
 
 **TL;DR:** pod name on a GPU metric = one new set of series per pod restart. Keep the pod name (it is the join key), drop everything else that churns.
 
-## Measured on the rig (Oct 13, 2 L4 GPUs, 7 counters)
+## Measured on the rig (Oct 13, 2 A10G GPUs, 7 counters)
 
 | | GPU series |
 |--|--|

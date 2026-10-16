@@ -75,6 +75,11 @@ S10. "Take this home" (S5) split into three animated slides, 2:00 total: 5a "Who
 Pod B too big, takeaway), 5b "Three lines of config, one join key" (dcgm / Fluent Bit / OTel cards, arrows converge on pod name),
 5c "Size it from peak KV cache" (gauge 0-40 too big / 40-90 about right / 90+ too small, Pod A lands at 100%, Pod B at ~30%,
 rule of thumb is ours, repo QR).
+S11. Lessons from Henrique's other two decks (Agents Are Not Microservices; Data-Driven Platform Guardrails):
+provenance footer on every evidence slide (model opt-125m, vLLM v0.30.0, A10G, date); caveat on 5c ("use the method, not our numbers");
+numbered close on 5c (1 Measure, 2 Change, 3 Measure again); four hidden Q&A slides after Questions (13 /metrics vs log, 14 why not
+0.90, 15 GPU utilisation, 16 pod-name cost); speaker notes in his format (header, timing | speaker | clicks, script with
+[PAUSE]/[SLOWLY]/[EMPHASIS], SOURCE with what it does not prove, [IF ASKED]), English only, in deck/pptx/notes_obsday.py.
 
 ## Still open
 - Timed rehearsal of DEMO-SCRIPT.md (target 10 min).

@@ -23,4 +23,4 @@ Deck: `deck/kubecon-na-2026-v6.pptx` (main path slides 1-14, appendix 15-23 for 
 
 Abstract coverage: dcgm-exporter Kubernetes mode (7, 10), Fluent Bit enrich + Lua token throughput (11), OTel Collector multi-hop traces (12, demo), Grafana join by pod (demo, 9), over-provisioned vs memory-constrained (demo verdict), what broke: cardinality (10), deployable configs (14, repo).
 
-Slack: about 2 min. If the room is slow, stretch the demo; if Q&A is quiet, open appendix 16 (prefill vs decode).
+Buffer: about 2 min. If the room is slow, stretch the demo; if Q&A is quiet, open appendix 16 (prefill vs decode).

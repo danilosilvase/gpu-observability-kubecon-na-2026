@@ -10,6 +10,7 @@ from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
 HERE = os.path.dirname(os.path.abspath(__file__)); A = lambda f: os.path.join(HERE, "assets", f)
 MAG, INK, GREY, LIGHT, LINE = "991346", "1F1F24", "6B6B76", "F3F3F5", "D5D5DB"
 RED, BLUE, WHITE, CODEBG = "D7263D", "2F6FDB", "FFFFFF", "F1F1F4"
+GREEN, ORANGE, PURPLE, DARK = "2E9E5B", "E8871E", "7B4FBF", "333338"
 REPO = "github.com/danilosilvase/gpu-observability-kubecon-na-2026"
 rgb = lambda h: RGBColor.from_string(h)
 
@@ -55,7 +56,7 @@ from lxml import etree
 NS = 'xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"'
 mark = lambda s: len(s.shapes)                      # remember where a group of shapes starts
 since = lambda s, m: list(s.shapes)[m:]             # shapes added after the mark
-FX = {"fade": (10, 0, "fade"), "wipe": (22, 8, "wipe(left)"), "up": (42, 0, None), "zoom": (53, 16, None)}
+FX = {"wheel": (21, 1, "wheel(1)"), "rise": (22, 4, "wipe(up)"), "fade": (10, 0, "fade"), "wipe": (22, 8, "wipe(left)"), "up": (42, 0, None), "zoom": (53, 16, None)}
 def _effect(ids, sp, fx, delay, dur, node):
     pid, sub, flt = FX[fx]
     beh = ""
@@ -126,61 +127,111 @@ for sh in title_s.shapes:
         p = tf.add_paragraph(); r = p.add_run(); r.text = "Danilo Silva, Senior Delivery Consultant, AWS"
         r.font.size, r.font.italic, r.font.name, r.font.color.rgb = Pt(26), True, "Arial", rgb(WHITE)
 
-# ---------- slide 1: the vote ----------
+# ---------- slide 1: the vote (ring gauges sweep to 8% and 90%; "same" chips; quiz-style vote) ----------
+def ring(s, cx, cy, d, pct, col, th=0.13):
+    bg = s.shapes.add_shape(MSO_SHAPE.DONUT, I(cx - d / 2), I(cy - d / 2), I(d), I(d)); bg.adjustments[0] = th
+    bg.fill.solid(); bg.fill.fore_color.rgb = rgb("ECECF0"); bg.line.fill.background(); bg.shadow.inherit = False
+    arc = s.shapes.add_shape(MSO_SHAPE.BLOCK_ARC, I(cx - d / 2), I(cy - d / 2), I(d), I(d))
+    st, en = 270.0, (270.0 + 360.0 * pct / 100) % 360
+    arc.adjustments[0], arc.adjustments[1], arc.adjustments[2] = st * 0.6, en * 0.6, th
+    arc.fill.solid(); arc.fill.fore_color.rgb = rgb(col); arc.line.fill.background(); arc.shadow.inherit = False
+    return bg, arc
 s = body_slide("Which one is in trouble?")
-text(s, 0.6, 1.35, 10.5, 0.5, "Two vLLM pods. Same model, same GPU type, same traffic.", size=24, color=GREY)
-m1 = mark(s); cardsA = []
-for x, col, name, pct in ((0.6, RED, "Pod A", "8%"), (6.75, BLUE, "Pod B", "90%")):
-    box(s, x, 2.0, 5.95, 2.65, fill=WHITE, line=col, lw=3)
-    text(s, x + 0.35, 2.12, 5.3, 0.5, name, size=22, color=col, bold=True)
-    text(s, x + 0.35, 2.55, 5.3, 1.35, pct, size=80, color=col, bold=True, spacing=0.9, anchor=MSO_ANCHOR.MIDDLE)
-    text(s, x + 0.35, 4.05, 5.3, 0.5, "of GPU memory reserved for vLLM", size=20, color=INK)
-    cardsA.append(since(s, m1)); m1 = mark(s)
-m2 = mark(s)
-text(s, 0.6, 4.95, 3.0, 0.5, "Hands up:", size=24, color=INK, bold=True)
-for i, opt in enumerate(("8%", "90%", "both", "can't tell from here")):
-    w = 3.4 if i == 3 else 2.35; x = 0.6 + sum((2.35 + 0.3) for _ in range(i))
-    b = box(s, x, 5.5, w, 0.85, fill=LIGHT, line=LINE)
-    text(s, x, 5.5, w, 0.85, opt, size=24, bold=True, align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
-vote = since(s, m2)
-animate(s, [("click", [(cardsA[0], "up", 0, 500)]), ("click", [(cardsA[1], "up", 0, 500)]),
-            ("click", [(vote[:1], "fade", 0, 300)] + [(vote[i:i + 2], "zoom", 180, 350) for i in range(1, len(vote), 2)])])
+text(s, 0.6, 1.3, 9.5, 0.45, "Two vLLM pods on our test cluster", size=20, color=GREY)
+pods = []
+for x, col, name, pct, flag in ((0.6, RED, "Pod A", 8, "0.08"), (7.73, BLUE, "Pod B", 90, "0.90")):
+    m = mark(s)
+    box(s, x, 1.95, 5.0, 3.05, fill=WHITE, line=LINE, lw=1.25, radius=0.02)
+    box(s, x, 1.95, 5.0, 0.12, fill=col, line=None, shape=MSO_SHAPE.RECTANGLE)
+    text(s, x + 0.3, 2.2, 2.5, 0.5, name, size=22, bold=True, color=col)
+    bg, arc = ring(s, x + 1.45, 3.75, 1.9, pct, col)
+    text(s, x + 0.5, 3.35, 1.9, 0.6, f"{pct}%", size=34, bold=True, color=col, align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
+    text(s, x + 0.5, 3.92, 1.9, 0.35, "reserved", size=12, color=GREY, align=PP_ALIGN.CENTER)
+    pct_lbl = list(s.shapes)[-2:]
+    text(s, x + 2.75, 2.85, 2.1, 1.0, "of GPU memory, taken by vLLM at startup", size=16, color=INK)
+    box(s, x + 2.75, 4.0, 2.05, 0.62, fill=CODEBG, line=None, radius=0.12)
+    text(s, x + 2.75, 4.0, 2.05, 0.62, ["--gpu-memory-", f"utilization={flag}"], size=11, font="Consolas", color=INK,
+         align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE, spacing=0.95)
+    allp = since(s, m)
+    pods.append(([sh for sh in allp if sh not in (arc,) and sh not in pct_lbl], arc, pct_lbl))
+m = mark(s)
+for k, lbl in enumerate(("same model", "same GPU type", "same traffic")):
+    y = 2.55 + k * 0.72
+    box(s, 5.8, y, 1.73, 0.5, fill=LIGHT, line=LINE, lw=1, radius=0.5)
+    text(s, 5.8, y, 1.73, 0.5, lbl, size=13, bold=True, color=GREY, align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
+same = since(s, m)
+same_g = [same[i:i + 2] for i in range(0, len(same), 2)]
+m = mark(s)
+text(s, 0.6, 5.2, 4.0, 0.4, "HANDS UP", size=14, bold=True, color=MAG)
+for i, (letter, opt) in enumerate((("A", "8%"), ("B", "90%"), ("C", "both"), ("D", "can't tell"))):
+    w = 2.87; x = 0.6 + i * (w + 0.22)
+    box(s, x, 5.6, w, 0.85, fill=WHITE, line=MAG, lw=1.5, radius=0.5)
+    o = s.shapes.add_shape(MSO_SHAPE.OVAL, I(x + 0.14), I(5.72), I(0.61), I(0.61)); o.fill.solid(); o.fill.fore_color.rgb = rgb(MAG)
+    o.line.fill.background(); o.shadow.inherit = False
+    text(s, x + 0.14, 5.72, 0.61, 0.61, letter, size=20, bold=True, color=WHITE, align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
+    text(s, x + 0.85, 5.6, w - 0.95, 0.85, opt, size=24, bold=True, color=INK, anchor=MSO_ANCHOR.MIDDLE)
+vote = since(s, m)
+vote_g = [vote[:1]] + [vote[i:i + 4] for i in range(1, len(vote), 4)]
+animate(s, [("click", [(pods[0][0], "up", 0, 450), ([pods[0][1]], "wheel", 0, 700), (pods[0][2], "fade", 0, 300)]),
+            ("click", [(pods[1][0], "up", 0, 450), ([pods[1][1]], "wheel", 0, 1600), (pods[1][2], "fade", 0, 300)]),
+            ("auto", [(g, "zoom", 180, 300) for g in same_g]),
+            ("click", [(vote_g[0], "fade", 0, 300)] + [(g, "zoom", 200, 350) for g in vote_g[1:]])])
 
-# ---------- slide 2: a setting, not a signal ----------
+# ---------- slide 2: a setting, not a signal (load climbs, the GPU memory line does not move) ----------
 s = body_slide("GPU memory is a setting, not a signal")
 tiles = (("CPU", "how busy the cores are"), ("Memory", "RAM the container uses"),
          ("Network", "bytes in and out"), ("Disk", "reads and writes"))
-m1 = mark(s)
+m1 = mark(s); tile_g = []
 for i, (n, d) in enumerate(tiles):
-    x = 0.6 + i * 2.45
-    box(s, x, 1.95, 2.25, 1.9, fill=LIGHT, line=LINE)
-    text(s, x + 0.2, 2.1, 1.9, 0.5, n, size=24, bold=True, color=GREY)
-    text(s, x + 0.2, 2.7, 1.9, 1.2, d, size=17, color=GREY)
-text(s, 0.6, 3.95, 9.6, 0.45, "Node and container resources. None of them sees the server's queue.", size=16, color=GREY, italic=True)
-four = since(s, m1); m2 = mark(s)
-x = 10.5
-box(s, x, 1.95, 2.25, 1.9, fill=WHITE, line=MAG, lw=3)
-text(s, x + 0.15, 2.1, 2.0, 0.5, "GPU memory", size=19, bold=True, color=MAG)
-box(s, x + 0.25, 2.65, 1.75, 0.75, fill=LIGHT, line=None, shape=MSO_SHAPE.RECTANGLE)
-gpu_tile = since(s, m2); m3 = mark(s)
-ln = s.shapes.add_connector(MSO_CONNECTOR.STRAIGHT, I(x + 0.25), I(2.75), I(x + 2.0), I(2.75)); ln.line.color.rgb = rgb(MAG); ln.line.width = Pt(4)
-line_ = since(s, m3); m4 = mark(s)
-mk = s.shapes.add_connector(MSO_CONNECTOR.STRAIGHT, I(x + 1.62), I(2.62), I(x + 1.62), I(3.42)); mk.line.color.rgb = rgb("E8871E"); mk.line.width = Pt(2)
+    mt = mark(s); x = 0.6 + (i % 2) * 1.95; y = 1.95 + (i // 2) * 1.32
+    box(s, x, y, 1.8, 1.18, fill=LIGHT, line=None, radius=0.08)
+    text(s, x + 0.18, y + 0.14, 1.5, 0.4, n, size=19, bold=True, color=GREY)
+    text(s, x + 0.18, y + 0.58, 1.5, 0.6, d, size=13, color=GREY, spacing=1.0)
+    tile_g.append(since(s, mt))
+mc = mark(s)
+text(s, 0.6, 4.6, 3.75, 0.7, "Node and container resources. None of them sees the server's queue.", size=14, italic=True, color=GREY)
+cap4 = since(s, mc)
+CX, CY, CW, CH = 4.75, 1.95, 7.98, 3.25          # chart card
+PX, PY, PW, PH = 5.55, 2.5, 6.9, 2.15           # plot area
+yv = lambda v: PY + PH * (1 - v / 100)
+m2 = mark(s)
+box(s, CX, CY, CW, CH, fill=WHITE, line=LINE, lw=1.25, radius=0.04)
+text(s, CX + 0.25, CY + 0.12, 5.0, 0.4, "GPU memory used, one vLLM pod", size=16, bold=True, color=INK)
+for v in (0, 50, 100):
+    g = s.shapes.add_connector(MSO_CONNECTOR.STRAIGHT, I(PX), I(yv(v)), I(PX + PW), I(yv(v)))
+    g.line.color.rgb = rgb(LINE if v else GREY); g.line.width = Pt(0.75 if v else 1.25)
+    text(s, PX - 0.65, yv(v) - 0.15, 0.55, 0.3, f"{v}%", size=11, color=GREY, align=PP_ALIGN.RIGHT)
+text(s, PX, PY + PH + 0.08, 2.0, 0.3, "startup", size=11, color=GREY)
+text(s, PX + PW - 2.0, PY + PH + 0.08, 2.0, 0.3, "10 minutes later", size=11, color=GREY, align=PP_ALIGN.RIGHT)
+chart = since(s, m2); m3 = mark(s)
+LX = PX + PW * 0.42                                # load starts here
+band = box(s, LX, PY, PX + PW - LX, PH, fill="FDF0E1", line=None, shape=MSO_SHAPE.RECTANGLE)
+mk = s.shapes.add_connector(MSO_CONNECTOR.STRAIGHT, I(LX), I(PY - 0.05), I(LX), I(PY + PH)); mk.line.color.rgb = rgb(ORANGE); mk.line.width = Pt(2)
 mk.line.dash_style = 4
-text(s, x + 0.3, 3.1, 1.28, 0.3, "load starts", size=11, bold=True, color="E8871E", align=PP_ALIGN.RIGHT)
-marker = since(s, m4); m5 = mark(s)
-text(s, x + 0.3, 2.8, 1.28, 0.35, "92%, flat", size=14, bold=True, color=MAG)
-text(s, x + 0.2, 3.42, 1.9, 0.4, "set at startup", size=16, color=INK)
-flat_lbl = since(s, m5); m6 = mark(s)
-text(s, 0.6, 4.75, 12.1, 1.2, [[("vLLM reserves 92% of GPU memory when it starts. ", {"bold": True}),
+text(s, LX + 0.08, yv(80), 1.6, 0.3, "load starts", size=12, bold=True, color=ORANGE)
+load_mk = since(s, m3); m4 = mark(s)
+hs = (12, 22, 33, 41, 50, 56, 61, 64, 66, 67)       # requests in flight, illustrative ramp
+bw = (PX + PW - LX - 0.2) / len(hs)
+for k, h in enumerate(hs):
+    box(s, LX + 0.1 + k * bw + 0.04, yv(h * 0.8), bw - 0.08, PY + PH - yv(h * 0.8), fill="F2C79B", line=None, shape=MSO_SHAPE.RECTANGLE)
+text(s, PX + PW - 2.3, yv(80), 2.25, 0.3, "requests in flight", size=12, bold=True, color="B8661A", align=PP_ALIGN.RIGHT)
+bars = since(s, m4); m5 = mark(s)
+ln = s.shapes.add_connector(MSO_CONNECTOR.STRAIGHT, I(PX), I(yv(92)), I(PX + PW), I(yv(92))); ln.line.color.rgb = rgb(MAG); ln.line.width = Pt(4.5)
+line_ = since(s, m5); m6 = mark(s)
+box(s, PX + 0.2, yv(92) + 0.14, 1.6, 0.42, fill=MAG, line=None, radius=0.5)
+text(s, PX + 0.2, yv(92) + 0.14, 1.6, 0.42, "92%, flat", size=15, bold=True, color=WHITE, align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
+text(s, PX + 0.2, yv(92) + 0.6, 1.6, 0.35, "set at startup", size=13, color=MAG, bold=True)
+flat_lbl = since(s, m6); m7 = mark(s)
+text(s, 0.6, 5.5, 12.1, 1.2, [[("vLLM reserves 92% of GPU memory when it starts. ", {"bold": True}),
      ("Busy or idle, that number stays put. So the chart we page on can't tell a struggling server from a quiet one.", {})]],
-     size=24, color=INK)
-sentence2 = since(s, m6)
-animate(s, [("click", [(four[i:i + 3], "up", 150, 400) for i in range(0, 12, 3)] + [(four[12:], "fade", 0, 400)]),
-            ("click", [(gpu_tile, "zoom", 0, 400), (line_, "wipe", 0, 1400)]),
-            ("click", [(marker, "fade", 0, 300)]), ("auto", [(flat_lbl, "fade", 0, 400)]),
+     size=22, color=INK)
+sentence2 = since(s, m7)
+animate(s, [("click", [(g, "up", 150, 400) for g in tile_g] + [(cap4, "fade", 0, 400)]),
+            ("click", [(chart, "fade", 0, 400), (line_, "wipe", 0, 1400)]),
+            ("click", [(load_mk, "fade", 0, 350)] + [([b], "rise", 110, 260) for b in bars[:-1]] + [(bars[-1:], "fade", 0, 300)]),
+            ("auto", [(flat_lbl, "zoom", 0, 400)]),
             ("click", [(sentence2, "fade", 0, 500)])])
-foot(s, "vLLM default: gpu_memory_utilization = 0.92 (vllm/config/cache.py, vLLM main, Oct 2026)")
+foot(s, "vLLM default: gpu_memory_utilization = 0.92 (vllm/config/cache.py, vLLM main, Oct 2026). Request bars are illustrative.")
 
 # ---------- slide 3: the connection pool ----------
 s = body_slide("What runs out first: room for requests in flight")
@@ -277,7 +328,6 @@ animate(s, [("click", [(hdr, "fade", 0, 300), (rows4[0], "up", 0, 450)]), ("clic
             ("click", [(rows4[2], "up", 0, 450)])])
 
 # ---------- slides 5a-5c: take this home (S10: three slides, animated) ----------
-GREEN, ORANGE, PURPLE, DARK = "2E9E5B", "E8871E", "7B4FBF", "333338"
 from pptx.oxml.ns import qn
 def arrow(s, x1, y1, x2, y2, col, w=3):
     c = s.shapes.add_connector(MSO_CONNECTOR.STRAIGHT, I(x1), I(y1), I(x2), I(y2)); c.line.color.rgb = rgb(col); c.line.width = Pt(w)

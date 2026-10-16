@@ -25,7 +25,7 @@ We have twenty minutes: one question for you, a live demo, and then your questio
 SOURCE: Title is the accepted abstract title, verbatim (ABSTRACT.md).""",
 
 3: """SLIDE 3: WHICH ONE IS IN TROUBLE?
-0:30 to 2:00 | HENRIQUE | 3 clicks: Pod A, Pod B, the vote
+0:30 to 2:00 | HENRIQUE | 3 clicks: Pod A (ring sweeps to 8%), Pod B (ring sweeps to 90%, then the "same" chips pop in), the vote
 
 Two vLLM pods. Same model, same GPU type, same traffic. [click] One reserved 8% of GPU memory. [click] The other, 90%. [PAUSE]
 
@@ -40,15 +40,15 @@ SOURCE: manifests/20-vllm/vllm.yaml: vllm-constrained --gpu-memory-utilization=0
 - Which model? facebook/opt-125m, a small model, so the cache fills on one A10G with modest traffic. We did not measure bigger models; the mechanism (a fixed pool that fills) does not depend on model size, the numbers do.""",
 
 4: """SLIDE 4: GPU MEMORY IS A SETTING, NOT A SIGNAL
-2:00 to 3:30 | HENRIQUE | 4 clicks: the four tiles, GPU memory draws, load starts, the sentence ("92%, flat" appears by itself)
+2:00 to 3:30 | HENRIQUE | 4 clicks: the four tiles, the GPU memory line draws, load starts (bars climb, "92%, flat" pops by itself), the sentence
 
 [click] These are the four we all watch: CPU, memory, network, disk. They measure resources on the node and in the container, and that's useful. [PAUSE] But none of them sees the server's queue.
 
-[click] So we add GPU memory. vLLM takes 92% of it at startup, by default. [click] Now the load starts. [PAUSE] And the line doesn't move.
+[click] So we add GPU memory. vLLM takes 92% of it at startup, by default. [click] Now the load starts. Requests pile up. [PAUSE] [EMPHASIS] And the line doesn't move.
 
 [click] [SLOWLY] GPU memory is a setting, not a signal. Busy or idle, it stays put. So the chart we page on can't tell a struggling server from a quiet one.
 
-SOURCE: vLLM default gpu_memory_utilization = 0.92 (vllm/config/cache.py, vLLM main, checked Oct 2026). vLLM pre-allocates that share at startup for weights, activations and the KV cache, so used memory (DCGM_FI_DEV_FB_USED, demo screen 1) stays flat under load. The slide does not say CPU or memory metrics are useless; only that they do not see the inference queue.
+SOURCE: vLLM default gpu_memory_utilization = 0.92 (vllm/config/cache.py, vLLM main, checked Oct 2026). vLLM pre-allocates that share at startup for weights, activations and the KV cache, so used memory (DCGM_FI_DEV_FB_USED, demo screen 1) stays flat under load. The request bars are illustrative (shape only, not measured values); the flat line is what demo screen 1 shows. The slide does not say CPU or memory metrics are useless; only that they do not see the inference queue.
 [IF ASKED]
 - What about GPU utilisation? Hidden slide 15.""",
 

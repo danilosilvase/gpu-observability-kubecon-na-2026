@@ -87,7 +87,7 @@
       "id": 1,
       "type": "stat",
       "title": "Verdict per pod (peak KV cache while it has traffic, parsed from the serving log)",
-      "description": "KV cache is the real 'GPU full' for an LLM server. With traffic: over 90% = memory-constrained, under 30% = over-provisioned. No traffic = OK.",
+      "description": "KV cache is the real 'GPU full' for an LLM server. With traffic: over 90% = memory-constrained, under 40% = over-provisioned (our rule of thumb). No traffic = OK.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -150,7 +150,7 @@
             {
               "type": "range",
               "options": {
-                "from": 30,
+                "from": 40,
                 "to": 90,
                 "result": {
                   "text": "BUSY",
@@ -163,7 +163,7 @@
               "type": "range",
               "options": {
                 "from": 0,
-                "to": 30,
+                "to": 40,
                 "result": {
                   "text": "OVER-PROVISIONED",
                   "color": "blue",
@@ -388,8 +388,8 @@
     {
       "id": 4,
       "type": "timeseries",
-      "title": "3. Queue time p95 (vLLM /metrics): requests start waiting",
-      "description": "Time a request waits before the GPU picks it up. Rises when the KV cache is full.",
+      "title": "3. Time to first token (vLLM /metrics): requests wait for room",
+      "description": "Average time until the first token. Rises when the KV cache is full and requests queue.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -484,7 +484,7 @@
             "uid": "prometheus"
           },
           "refId": "A",
-          "expr": "histogram_quantile(0.95, sum by (le, pod) (rate(vllm:request_queue_time_seconds_bucket{pod=~\"$pod\"}[1m])))",
+          "expr": "(sum by (pod) (rate(vllm:time_to_first_token_seconds_sum{pod=~\"$pod\"}[2m])) / sum by (pod) (rate(vllm:time_to_first_token_seconds_count{pod=~\"$pod\"}[2m])) >= 0)",
           "legendFormat": "{{pod}}"
         }
       ]

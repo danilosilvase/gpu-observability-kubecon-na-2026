@@ -8,7 +8,7 @@ q() { curl -s -m 5 localhost:9090/api/v1/query --data-urlencode "query=$1" | gre
 c "2 vLLM pods Running"            "[ \$(kubectl -n inference get pods -l app=vllm --no-headers | grep -c Running) -eq 2 ]"
 c "1 GPU memory (DCGM) per pod"    "q 'DCGM_FI_DEV_FB_USED{exported_pod=~\"vllm-.*\"}'"
 c "2 KV cache from the log"        "q 'vllm_log_kv_cache_usage_pct'"
-c "3 request time (vLLM)"          "q 'vllm:e2e_request_latency_seconds_count'"
+c "3 time to first token (vLLM)"   "q 'vllm:time_to_first_token_seconds_count'"
 c "4 traces: client -> vLLM"       "curl -s -m 5 localhost:16686/api/services | grep -q chat-client"
 c "stage dashboard loaded"         "curl -s -m 5 -u admin:gpu-obs-demo localhost:3000/api/dashboards/uid/gpu-inference-obs | grep -q 'Which pod is in trouble'"
 c "deep-dive dashboard loaded"     "curl -s -m 5 -u admin:gpu-obs-demo localhost:3000/api/dashboards/uid/gpu-inference-deep | grep -q 'deep dive'"

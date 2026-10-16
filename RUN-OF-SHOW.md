@@ -1,3 +1,5 @@
+> SUPERSEDED (Oct 16): talk is being rebuilt demo-first (Henrique 5 slides, Danilo 4 demo screens). Numbers below are the old v6 setup (red 0.15, unequal traffic).
+
 # Run of show, 25 min slot (Mon 9 Nov, 11:50-12:15 MST, 250 A-C)
 
 Deck: `deck/kubecon-na-2026-v6.pptx` (main path slides 1-14, appendix 15-23 for Q&A only). Full scripts in the speaker notes. Demo beats: `DEMO-RUNBOOK.md`. Fallback video: `deck/video/gpu-obs-demo-v6.mp4` (3:21).

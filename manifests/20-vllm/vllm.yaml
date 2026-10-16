@@ -1,5 +1,5 @@
 # Two deployments with different --gpu-memory-utilization.
-#   vllm-constrained (0.15): small pre-allocated pool -> small KV cache -> saturates under load.
+#   vllm-constrained (0.08): small pre-allocated pool -> small KV cache -> saturates under load.
 #   vllm-overprov    (0.90): large pre-allocated pool -> KV cache never fills.
 # Both show a FLAT DCGM_FI_DEV_FB_USED from minute one (vLLM pre-allocates), which is the
 # point of the talk: the GPU memory counter cannot tell you which one is in trouble.
@@ -24,7 +24,7 @@ spec:
       containers:
         - name: vllm
           image: vllm/vllm-openai:v0.30.0
-          args: ["--model=facebook/opt-125m","--gpu-memory-utilization=0.15","--max-model-len=1024","--max-num-seqs=256","--otlp-traces-endpoint=grpc://otel-collector.observability:4317"]
+          args: ["--model=facebook/opt-125m","--gpu-memory-utilization=0.08","--max-model-len=1024","--max-num-seqs=256","--otlp-traces-endpoint=grpc://otel-collector.observability:4317"]
           env:
             - { name: OTEL_SERVICE_NAME, value: "vllm-constrained" }
             - { name: OTEL_EXPORTER_OTLP_TRACES_INSECURE, value: "true" }

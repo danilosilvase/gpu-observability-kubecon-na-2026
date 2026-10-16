@@ -69,7 +69,7 @@ def verdict(pid, title, y, h=5):
     """Peak KV cache while the pod has traffic. No traffic = -1 = OK, so idle pods read OK, not over-provisioned."""
     return {
     "id": pid, "type": "stat", "title": title,
-    "description": "KV cache is the real 'GPU full' for an LLM server. With traffic: over 90% = memory-constrained, under 30% = over-provisioned. No traffic = OK.",
+    "description": "KV cache is the real 'GPU full' for an LLM server. With traffic: over 90% = memory-constrained, under 40% = over-provisioned (our rule of thumb). No traffic = OK.",
     "datasource": P, "gridPos": {"x": 0, "y": y, "w": 24, "h": h}, "interval": "5s",
     "targets": [{"datasource": P, "refId": r, "legendFormat": "{{pod_name}}",
                  "expr": f'({KV_PEAK}{TRAFFIC}) or (({KV_PEAK}) * 0 - 1)'.replace('pod_name=~"$pod"', f'pod_name=~"$pod", pod_name=~"{dep}.*"')}
@@ -78,8 +78,8 @@ def verdict(pid, title, y, h=5):
         "mappings": [
             {"type": "value", "options": {"-1": {"text": "OK", "color": "green", "index": 0}}},
             {"type": "range", "options": {"from": 90, "to": 1000, "result": {"text": "MEMORY-CONSTRAINED", "color": "red", "index": 1}}},
-            {"type": "range", "options": {"from": 30, "to": 90, "result": {"text": "BUSY", "color": "orange", "index": 2}}},
-            {"type": "range", "options": {"from": 0, "to": 30, "result": {"text": "OVER-PROVISIONED", "color": "blue", "index": 3}}}],
+            {"type": "range", "options": {"from": 40, "to": 90, "result": {"text": "BUSY", "color": "orange", "index": 2}}},
+            {"type": "range", "options": {"from": 0, "to": 40, "result": {"text": "OVER-PROVISIONED", "color": "blue", "index": 3}}}],
         "color": {"mode": "fixed", "fixedColor": "text"}}, "overrides": []},
     "options": {"colorMode": "background", "graphMode": "none", "textMode": "value_and_name",
                 "justifyMode": "center", "text": {"titleSize": 30, "valueSize": 52}, "orientation": "vertical", "wideLayout": True,
@@ -103,6 +103,9 @@ def big(pid, title, desc, expr, legend, x, y, w, h, unit, mx=None, novalue="No t
                         "orientation": "horizontal", "wideLayout": True, "text": {"titleSize": 18, "valueSize": 64},
                         "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": False}}}
 
+TTFT = ('(sum by (pod) (rate(vllm:time_to_first_token_seconds_sum{pod=~"$pod"}[2m]))'
+        ' / sum by (pod) (rate(vllm:time_to_first_token_seconds_count{pod=~"$pod"}[2m])) >= 0)')
+
 # ---------------- deep dive: every panel, for Q&A ----------------
 deep_panels = []
 # Row 0: the verdict, readable from the back of the room
@@ -118,10 +121,9 @@ deep_panels.append(ts(3, "2. KV cache % (log line, Fluent Bit + Lua): one pod hi
     [{"expr": 'vllm_log_kv_cache_usage_pct{pod_name=~"$pod"}' + LIVE, "legendFormat": "{{pod_name}}"}],
     8, 5, 8, 12, "percent", 0, 100,
     [{"color": "transparent", "value": None}, {"color": "red", "value": 90}]))
-deep_panels.append(ts(4, "3. Queue time p95 (vLLM /metrics): requests start waiting",
-    "Time a request waits before the GPU picks it up. Rises when the KV cache is full.",
-    [{"expr": 'histogram_quantile(0.95, sum by (le, pod) (rate(vllm:request_queue_time_seconds_bucket{pod=~"$pod"}[1m])))',
-      "legendFormat": "{{pod}}"}],
+deep_panels.append(ts(4, "3. Time to first token (vLLM /metrics): requests wait for room",
+    "Average time until the first token. Rises when the KV cache is full and requests queue.",
+    [{"expr": TTFT, "legendFormat": "{{pod}}"}],
     16, 5, 8, 12, "s", 0, None,
     [{"color": "transparent", "value": None}, {"color": "orange", "value": 1}, {"color": "red", "value": 3}], tstyle="dashed"))
 
@@ -171,12 +173,11 @@ stage_panels = [
     big(3, "How full the server really is  ·  KV cache %  ·  from its own log line",
         "The model server's working memory. Read from the vLLM log line by Fluent Bit + a 15-line Lua filter. 100% = full, new requests wait.",
         'vllm_log_kv_cache_usage_pct{pod_name=~"$pod"}' + LIVE, "{{pod_name}}", 8, 5, 8, 12, "percent", mx=100, decimals=0),
-    big(4, "How long a request takes  ·  average  ·  what the user feels",
-        "End-to-end request time measured by vLLM itself (/metrics): sum / count over the last 2 min. Matches the trace durations below.",
+    big(4, "How long until the answer starts  ·  time to first token  ·  what the user feels",
+        "Time to first token measured by vLLM itself (/metrics): sum / count over the last 2 min. It includes the time a request waits for room in the KV cache.",
         # >= 0 drops the NaN (0/0) an idle pod returns, so the tile says "No traffic"
-        '(sum by (pod) (rate(vllm:e2e_request_latency_seconds_sum{pod=~"$pod"}[2m])) / sum by (pod) (rate(vllm:e2e_request_latency_seconds_count{pod=~"$pod"}[2m])) >= 0)'
-        ' or (sum by (pod) (rate(vllm:e2e_request_latency_seconds_count{pod=~"$pod"}[2m])) * 0)', "{{pod}}",
-        16, 5, 8, 12, "s", decimals=1, zero_text="No traffic"),
+        TTFT + ' or (sum by (pod) (rate(vllm:time_to_first_token_seconds_count{pod=~"$pod"}[2m])) * 0)', "{{pod}}",
+        16, 5, 8, 12, "s", decimals=2, zero_text="No traffic"),
     traces(5, "The slowest requests on the red pod (traces)  ·  click one", "vllm-constrained", 0, 17, 24, 9),
 ]
 

@@ -26,9 +26,9 @@ Stage dashboard `gpu-inference-obs` (kiosk, 1080p, no scrolling). The deep dive 
 +-----------------------------------------------------------------+
 |  vllm-constrained-...   OK -> MEMORY-CONSTRAINED  | vllm-overprov-...  OK -> OVER-PROVISIONED |
 +---------------------+---------------------+---------------------+
-| GPU memory (DCGM)   | How full: KV cache  | Request time        |
-| red 3.5 GB          | red 0 -> 100%       | red -> ~12 s        |
-| blue 20.5 GB, flat  | blue 0%             | blue ~0.13 s        |
+| GPU memory (DCGM)   | How full: KV cache  | Time to first token |
+| red 2.0 GB, flat    | red 0 -> 100%       | red -> ~6 s         |
+| blue 20.6 GB, flat  | blue ~30%           | blue ~0.08 s        |
 +---------------------+---------------------+---------------------+
 | Slowest requests on the red pod (traces): click one             |
 +-----------------------------------------------------------------+
@@ -50,15 +50,20 @@ Red = constrained, blue = over-provisioned, everywhere. Verdict = peak KV cache 
 
 Click 6 slow? Run `demo/trace.sh` (pre-opened tab). Anything else stalls: play the video, narrate with `deck/video/CUES-v6.md`.
 
-## Numbers measured on the rig (Oct 15, NVIDIA L4)
+## Numbers measured on the rig (Oct 16, NVIDIA L4, SAME traffic to both: 192 long requests each)
 
-| | constrained (0.15) | over-provisioned (0.90) |
+| | constrained (0.08) | over-provisioned (0.90) |
 |--|--|--|
-| GPU memory (DCGM) | 3.5 GB, flat | 20.5 GB, flat |
-| KV cache (log) | 99-100% | 0-0.4% |
-| Request time (average, vLLM /metrics) | ~12 s | ~0.13 s |
-| Slowest traces | 11.9-12.0 s | < 0.2 s |
-| GPU series (cardinality) | 14 live, 56 after 3 restarts | |
+| GPU memory (DCGM) | 2.0 GB, flat | 20.6 GB, flat |
+| KV cache (log), peak | 100% | ~31% |
+| Requests running / waiting | ~49 / ~143 | ~191 / 0 |
+| Tokens/s (log; /metrics agrees within ~2%) | ~9,500 | ~12,200 |
+| Time to first token (average, vLLM /metrics) | ~5.9 s | ~0.08 s |
+| Total request time (average) | ~7.8 s | ~6.1 s (blue runs all 192 at once, so each generates slower) |
+| GPU series (cardinality, Oct 15) | 14 live, 56 after 3 restarts | |
+
+Verdict thresholds (our rule of thumb, say so on stage): peak KV > 90% = MEMORY-CONSTRAINED, < 40% = OVER-PROVISIONED.
+The Oct 15 v6 numbers (0.15, unequal traffic, 12 s vs 0.13 s) are retired: the gap came from the traffic split.
 
 ## T-60 checklist
 

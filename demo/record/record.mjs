@@ -104,7 +104,7 @@ async function until(fn, ms, label) {
   console.log('timeout waiting for', label); return false;
 }
 const kv = async (re) => Math.max(0, ...(await prom(`vllm_log_kv_cache_usage_pct{pod_name=~"${re}"}`)).map(x => x[1]));
-const reqTime = async (re) => Math.max(0, ...(await prom(`sum by (pod) (rate(vllm:e2e_request_latency_seconds_sum{pod=~"${re}"}[2m])) / sum by (pod) (rate(vllm:e2e_request_latency_seconds_count{pod=~"${re}"}[2m]))`)).map(x => x[1]).filter(Number.isFinite));
+const reqTime = async (re) => Math.max(0, ...(await prom(`sum by (pod) (rate(vllm:time_to_first_token_seconds_sum{pod=~"${re}"}[2m])) / sum by (pod) (rate(vllm:time_to_first_token_seconds_count{pod=~"${re}"}[2m]))`)).map(x => x[1]).filter(Number.isFinite));
 const panel = id => `[data-panelid="${id}"]`;
 const DASH = `${G}/d/gpu-inference-obs?orgId=1&kiosk&from=now-5m&to=now&refresh=5s`;
 
@@ -129,7 +129,7 @@ rec = true; t0 = Date.now(); const cap = capLoop();
 await card(`<div style="font-size:30px;color:#ff9830;letter-spacing:2px">LIVE DEMO</div>
   <div style="font:700 64px/1.2 Inter,Helvetica,Arial;margin:14px 0 30px">Which pod is in trouble?</div>
   <div>Two vLLM pods · same model · same GPU (NVIDIA L4)</div>
-  <div><span style="color:#f2495c">red</span>: 15% of the GPU memory &nbsp;·&nbsp; <span style="color:#5794f2">blue</span>: 90%</div>
+  <div><span style="color:#f2495c">red</span>: 8% of the GPU memory &nbsp;·&nbsp; <span style="color:#5794f2">blue</span>: 90%</div>
   <div style="margin-top:30px;color:#9fa7b3;font-size:30px">Watch three numbers: GPU memory · how full the car park is (KV cache) · request time</div>`);
 cues.push(`${ts()}  [title card: which pod is in trouble?]`);
 await sleep(9000); await card(null); await sleep(800);

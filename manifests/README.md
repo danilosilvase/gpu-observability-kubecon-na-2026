@@ -11,7 +11,7 @@
 | - | Dashboard (stage) | Grafana | `60-grafana/gpu-inference-dashboard.json` | `$pod` |
 | - | Dashboard (deep dive, Q&A) | Grafana | `60-grafana/gpu-inference-deep-dive.json` | `$pod` |
 
-Workload: `20-vllm/vllm.yaml` (two vLLM pods, 15% vs 90% GPU memory) and
+Workload: `20-vllm/vllm.yaml` (two vLLM pods, 8% vs 90% GPU memory, same traffic) and
 `20-vllm/loadgen-job.yaml` (load + client span, hop 1 of each trace).
 
 ## Deploy

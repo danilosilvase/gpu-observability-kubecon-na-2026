@@ -87,7 +87,7 @@
       "id": 1,
       "type": "stat",
       "title": "Same model, same GPU. Which pod is in trouble?",
-      "description": "KV cache is the real 'GPU full' for an LLM server. With traffic: over 90% = memory-constrained, under 30% = over-provisioned. No traffic = OK.",
+      "description": "KV cache is the real 'GPU full' for an LLM server. With traffic: over 90% = memory-constrained, under 40% = over-provisioned (our rule of thumb). No traffic = OK.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -150,7 +150,7 @@
             {
               "type": "range",
               "options": {
-                "from": 30,
+                "from": 40,
                 "to": 90,
                 "result": {
                   "text": "BUSY",
@@ -163,7 +163,7 @@
               "type": "range",
               "options": {
                 "from": 0,
-                "to": 30,
+                "to": 40,
                 "result": {
                   "text": "OVER-PROVISIONED",
                   "color": "blue",
@@ -403,8 +403,8 @@
     {
       "id": 4,
       "type": "stat",
-      "title": "How long a request takes  \u00b7  average  \u00b7  what the user feels",
-      "description": "End-to-end request time measured by vLLM itself (/metrics): sum / count over the last 2 min. Matches the trace durations below.",
+      "title": "How long until the answer starts  \u00b7  time to first token  \u00b7  what the user feels",
+      "description": "Time to first token measured by vLLM itself (/metrics): sum / count over the last 2 min. It includes the time a request waits for room in the KV cache.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -423,7 +423,7 @@
             "uid": "prometheus"
           },
           "refId": "A",
-          "expr": "(sum by (pod) (rate(vllm:e2e_request_latency_seconds_sum{pod=~\"$pod\", pod=~\"vllm-constrained.*\"}[2m])) / sum by (pod) (rate(vllm:e2e_request_latency_seconds_count{pod=~\"$pod\", pod=~\"vllm-constrained.*\"}[2m])) >= 0) or (sum by (pod) (rate(vllm:e2e_request_latency_seconds_count{pod=~\"$pod\", pod=~\"vllm-constrained.*\"}[2m])) * 0)",
+          "expr": "(sum by (pod) (rate(vllm:time_to_first_token_seconds_sum{pod=~\"$pod\", pod=~\"vllm-constrained.*\"}[2m])) / sum by (pod) (rate(vllm:time_to_first_token_seconds_count{pod=~\"$pod\", pod=~\"vllm-constrained.*\"}[2m])) >= 0) or (sum by (pod) (rate(vllm:time_to_first_token_seconds_count{pod=~\"$pod\", pod=~\"vllm-constrained.*\"}[2m])) * 0)",
           "legendFormat": "{{pod}}"
         },
         {
@@ -432,7 +432,7 @@
             "uid": "prometheus"
           },
           "refId": "B",
-          "expr": "(sum by (pod) (rate(vllm:e2e_request_latency_seconds_sum{pod=~\"$pod\", pod=~\"vllm-overprov.*\"}[2m])) / sum by (pod) (rate(vllm:e2e_request_latency_seconds_count{pod=~\"$pod\", pod=~\"vllm-overprov.*\"}[2m])) >= 0) or (sum by (pod) (rate(vllm:e2e_request_latency_seconds_count{pod=~\"$pod\", pod=~\"vllm-overprov.*\"}[2m])) * 0)",
+          "expr": "(sum by (pod) (rate(vllm:time_to_first_token_seconds_sum{pod=~\"$pod\", pod=~\"vllm-overprov.*\"}[2m])) / sum by (pod) (rate(vllm:time_to_first_token_seconds_count{pod=~\"$pod\", pod=~\"vllm-overprov.*\"}[2m])) >= 0) or (sum by (pod) (rate(vllm:time_to_first_token_seconds_count{pod=~\"$pod\", pod=~\"vllm-overprov.*\"}[2m])) * 0)",
           "legendFormat": "{{pod}}"
         }
       ],
@@ -445,7 +445,7 @@
             "mode": "fixed",
             "fixedColor": "text"
           },
-          "decimals": 1,
+          "decimals": 2,
           "mappings": [
             {
               "type": "value",

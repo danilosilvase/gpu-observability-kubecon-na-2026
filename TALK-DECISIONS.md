@@ -27,9 +27,15 @@ Inference Is a Black Box, KubeCon NA Observability Day, Mon 9 Nov, 25-min slot (
 
 Retired: 0.15 + unequal traffic (12 s vs 0.13 s came from the traffic split), car park analogy, 95%/5% utilisation slide, deck v6 main path.
 
+## 10. Live, with a recorded twin (Oct 16)
+Live by default. One setup: the 4 walkthrough screens `gpu-walk-1..4` (build_walkthrough.py), the same load (`demo/load.sh`,
+started when Henrique opens the talk so it is 4-6 min old at the demo). The recording walks the same screens with the same clicks,
+in two versions recorded at the same time during the same load: captioned + spotlight (works without a narrator) and clean
+(slower, no overlays, to talk over on stage). Script: DEMO-SCRIPT.md. Runbook: DEMO-RUNBOOK.md.
+
 ## Still open
-- Walkthrough dashboard (4 screens) build, then timed rehearsal and per-screen fallback clips.
+- Timed rehearsal of DEMO-SCRIPT.md (target 10 min).
 - Henrique's 5 slides.
-- Stage dashboard title still says "Which pod is in trouble?" (to change with the walkthrough).
-- Live vs recorded on the day, who clicks.
+- Who clicks (default in the script: Danilo clicks and talks).
+- Stage dashboard `gpu-inference-obs` is Q&A only now; its title "Which pod is in trouble?" can stay.
 - Original author name. GitHub publish (Code Defender, before Nov 2).

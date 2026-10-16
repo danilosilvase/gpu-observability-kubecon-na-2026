@@ -1,13 +1,18 @@
-# Recording the demo (backup video)
+# Recording the demo (backup videos)
 
-Records the live demo as a captioned 1920x1080 video, for use if the venue network or the rig fails.
+`record.mjs` walks the same 4 screens as the live demo (`gpu-walk-1` to `gpu-walk-4`) with the same clicks
+(see `DEMO-SCRIPT.md`). Captions read live values from Prometheus and Jaeger, so they always match the screen.
 
-Prerequisites: rig up, `demo/start.sh` running (Grafana :3000, Jaeger :16686, Prometheus :9090), rig idle (no loadgen job), Chrome installed, `npm i playwright` in this folder.
+| Mode | Output | Use |
+|------|--------|-----|
+| `CLEAN=0` (default), `PACE=1.2` | `deck/video/gpu-obs-demo-v7.mp4` | captions + spotlight boxes, works without a narrator |
+| `CLEAN=1`, `PACE=1.8` | `deck/video/gpu-obs-demo-v7-clean.mp4` | no overlays, slower: talk over it on stage |
+
+Prerequisites: rig up, `demo/start.sh` running (Grafana :3000, Jaeger :16686, Prometheus :9090), Chrome, ffmpeg,
+`npm i playwright` in this folder. Best with no load in the 10 min before, so screen 1 shows idle and then the load.
 
 ```
-OUT=out node record.mjs          # about 5 min; starts the load itself, waits on real Prometheus values
-cd out && ffmpeg -f concat -safe 0 -i frames.txt -vf "fps=30,format=yuv420p" \
-  -c:v libx264 -crf 18 -movflags +faststart ../../../deck/video/gpu-obs-demo.mp4
+./record-both.sh        # starts the load if none, waits until it is 4 min old, records both at once, encodes
 ```
 
-`out/cues.txt` holds the caption timeline. Restart the vLLM pods a few times beforehand so the cardinality beat has "seen in the last hour" > "live now".
+`PACE` multiplies every pause. `out-fx/cues.txt` and `out-clean/cues.txt` hold the caption timelines.

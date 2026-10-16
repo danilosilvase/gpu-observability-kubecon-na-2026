@@ -31,6 +31,8 @@ terraform/terraform.tfvars
 
 # Rendered demo videos (large binaries, shared out of band)
 deck/video/*.mp4
-demo/record/out/
+demo/record/out*/
+demo/record/*.log
+demo/record/node_modules/
 __pycache__/
 *.pyc

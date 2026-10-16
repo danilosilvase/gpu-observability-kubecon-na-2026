@@ -1,0 +1,349 @@
+{
+  "uid": "gpu-walk-3",
+  "title": "3 \u00b7 Why was this request slow?",
+  "links": [
+    {
+      "type": "link",
+      "title": "Next: 4 Answer",
+      "url": "/d/gpu-walk-4",
+      "icon": "dashboard"
+    }
+  ],
+  "schemaVersion": 39,
+  "refresh": "5s",
+  "time": {
+    "from": "now-10m",
+    "to": "now"
+  },
+  "tags": [
+    "gpu",
+    "inference",
+    "vllm",
+    "dcgm",
+    "fluent-bit",
+    "otel"
+  ],
+  "graphTooltip": 1,
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      },
+      {
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "iconColor": "orange",
+        "name": "load hits",
+        "target": {
+          "type": "tags",
+          "tags": [
+            "load"
+          ],
+          "matchAny": true,
+          "limit": 20
+        }
+      }
+    ]
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "pod",
+        "label": "pod",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "query_result(kube_pod_status_phase{namespace=\"inference\", phase=\"Running\", pod=~\"vllm-(constrained|overprov).*\"} == 1)",
+          "refId": "pod"
+        },
+        "regex": "/pod=\"([^\"]+)\"/",
+        "includeAll": true,
+        "multi": true,
+        "refresh": 2,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 100,
+      "type": "text",
+      "title": "",
+      "transparent": true,
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 3
+      },
+      "options": {
+        "mode": "html",
+        "content": "<div style=\"display:flex;justify-content:space-between;align-items:center;font-size:20px;line-height:1.2;letter-spacing:0.5px\"><span><span style=\"color:#a0a0a0\">1 GPU</span><span style=\"color:#555\"> &rsaquo; </span><span style=\"color:#a0a0a0\">2 Log</span><span style=\"color:#555\"> &rsaquo; </span><span style=\"color:#ffffff;font-weight:700;border-bottom:4px solid #ff9830;padding-bottom:2px\">3 Trace</span><span style=\"color:#555\"> &rsaquo; </span><span style=\"color:#6e6e6e\">4 Answer</span></span><a href=\"/d/gpu-walk-4?orgId=1&kiosk\" style=\"font-size:18px;line-height:1.2;color:#ff9830;font-weight:700;text-decoration:none;border:2px solid #ff9830;border-radius:6px;padding:0 12px\">Next: 4 Answer &rsaquo;</a></div><div style=\"font-size:40px;line-height:1.2;font-weight:700;color:#ffffff;margin-top:0;padding-bottom:6px\">Why was this request slow?</div>"
+      }
+    },
+    {
+      "id": 101,
+      "type": "text",
+      "title": "",
+      "transparent": true,
+      "gridPos": {
+        "x": 0,
+        "y": 3,
+        "w": 9,
+        "h": 20
+      },
+      "options": {
+        "mode": "html",
+        "content": "<div style=\"font-size:16px;color:#9a9a9a;margin-bottom:6px\">manifests/40-traces/otel-collector.yaml</div><pre style=\"font-size:23px;line-height:1.5;background:#111217;border:1px solid #2c3235;padding:14px 16px;border-radius:8px;white-space:pre-wrap;margin:0\"><span style=\"display:block\">processors:</span><span style=\"display:block\">  k8sattributes:</span><span style=\"display:block\">    extract:</span><span style=\"display:block;background:#4d3d00;color:#ffd666;font-weight:700;margin:0 -16px;padding:0 16px\">      metadata: [k8s.pod.name]</span><span style=\"display:block\">    pod_association:</span><span style=\"display:block\">      - sources: [{from: connection}]</span></pre><div style=\"font-size:21px;color:#d8d9da;margin-top:14px;line-height:1.4\">vLLM sends a span per request. The Collector adds the <b>pod name</b>. Grafana uses it to jump from a trace to that pod's metrics.</div>"
+      }
+    },
+    {
+      "id": 30,
+      "type": "bargauge",
+      "title": "Where each request's time goes  \u00b7  average, last 2 min  \u00b7  vLLM",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 9,
+        "y": 3,
+        "w": 15,
+        "h": 11
+      },
+      "interval": "5s",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A",
+          "legendFormat": "red waiting",
+          "expr": "sum(rate(vllm:request_queue_time_seconds_sum{pod=~\"$pod\", pod=~\"vllm-constrained.*\"}[2m])) / sum(rate(vllm:request_queue_time_seconds_count{pod=~\"$pod\", pod=~\"vllm-constrained.*\"}[2m]))"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "B",
+          "legendFormat": "red on GPU",
+          "expr": "sum(rate(vllm:request_inference_time_seconds_sum{pod=~\"$pod\", pod=~\"vllm-constrained.*\"}[2m])) / sum(rate(vllm:request_inference_time_seconds_count{pod=~\"$pod\", pod=~\"vllm-constrained.*\"}[2m]))"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "C",
+          "legendFormat": "blue waiting",
+          "expr": "sum(rate(vllm:request_queue_time_seconds_sum{pod=~\"$pod\", pod=~\"vllm-overprov.*\"}[2m])) / sum(rate(vllm:request_queue_time_seconds_count{pod=~\"$pod\", pod=~\"vllm-overprov.*\"}[2m]))"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "D",
+          "legendFormat": "blue on GPU",
+          "expr": "sum(rate(vllm:request_inference_time_seconds_sum{pod=~\"$pod\", pod=~\"vllm-overprov.*\"}[2m])) / sum(rate(vllm:request_inference_time_seconds_count{pod=~\"$pod\", pod=~\"vllm-overprov.*\"}[2m]))"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 1,
+          "min": 0,
+          "max": 8,
+          "noValue": "No traffic",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "green"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*waiting.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "displayMode": "basic",
+        "orientation": "horizontal",
+        "showUnfilled": true,
+        "valueMode": "text",
+        "namePlacement": "top",
+        "sizing": "manual",
+        "minVizHeight": 56,
+        "maxVizHeight": 64,
+        "text": {
+          "titleSize": 18,
+          "valueSize": 26
+        },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 31,
+      "type": "table",
+      "title": "Slowest requests on the red pod  \u00b7  click one",
+      "datasource": {
+        "type": "jaeger",
+        "uid": "jaeger"
+      },
+      "description": "Jaeger search for this service. Click a Trace ID: the trace opens, and each span has links to this pod's GPU memory and KV cache.",
+      "gridPos": {
+        "x": 9,
+        "y": 14,
+        "w": 15,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "jaeger",
+            "uid": "jaeger"
+          },
+          "refId": "A",
+          "queryType": "search",
+          "service": "vllm-constrained",
+          "operation": "llm_request",
+          "limit": 40
+        }
+      ],
+      "transformations": [
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Duration",
+                "desc": true
+              }
+            ]
+          }
+        },
+        {
+          "id": "limit",
+          "options": {
+            "limitField": 6
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Trace name": true,
+              "Start time": true
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "left"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Duration"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "unit",
+                "value": "\u00b5s"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 1000000
+                    },
+                    {
+                      "color": "red",
+                      "value": 3000000
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
+    {
+      "id": 102,
+      "type": "text",
+      "title": "",
+      "transparent": true,
+      "gridPos": {
+        "x": 0,
+        "y": 23,
+        "w": 24,
+        "h": 4
+      },
+      "options": {
+        "mode": "html",
+        "content": "<div style=\"font-size:34px;font-weight:600;color:#ffffff;text-align:center;padding-top:6px\"><span style=\"color:#f2495c;font-weight:700\">Red</span>: most of each request is spent <b>waiting in line</b>, not on the GPU. One click shows why.</div>"
+      }
+    }
+  ]
+}

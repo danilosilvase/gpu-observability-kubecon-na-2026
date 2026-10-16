@@ -1,0 +1,220 @@
+{
+  "uid": "gpu-walk-1",
+  "title": "1 \u00b7 What does the GPU say?",
+  "links": [
+    {
+      "type": "link",
+      "title": "Next: 2 Log",
+      "url": "/d/gpu-walk-2",
+      "icon": "dashboard"
+    }
+  ],
+  "schemaVersion": 39,
+  "refresh": "5s",
+  "time": {
+    "from": "now-10m",
+    "to": "now"
+  },
+  "tags": [
+    "gpu",
+    "inference",
+    "vllm",
+    "dcgm",
+    "fluent-bit",
+    "otel"
+  ],
+  "graphTooltip": 1,
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      },
+      {
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "iconColor": "orange",
+        "name": "load hits",
+        "target": {
+          "type": "tags",
+          "tags": [
+            "load"
+          ],
+          "matchAny": true,
+          "limit": 20
+        }
+      }
+    ]
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "pod",
+        "label": "pod",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "query_result(kube_pod_status_phase{namespace=\"inference\", phase=\"Running\", pod=~\"vllm-(constrained|overprov).*\"} == 1)",
+          "refId": "pod"
+        },
+        "regex": "/pod=\"([^\"]+)\"/",
+        "includeAll": true,
+        "multi": true,
+        "refresh": 2,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 100,
+      "type": "text",
+      "title": "",
+      "transparent": true,
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 3
+      },
+      "options": {
+        "mode": "html",
+        "content": "<div style=\"display:flex;justify-content:space-between;align-items:center;font-size:20px;line-height:1.2;letter-spacing:0.5px\"><span><span style=\"color:#ffffff;font-weight:700;border-bottom:4px solid #ff9830;padding-bottom:2px\">1 GPU</span><span style=\"color:#555\"> &rsaquo; </span><span style=\"color:#6e6e6e\">2 Log</span><span style=\"color:#555\"> &rsaquo; </span><span style=\"color:#6e6e6e\">3 Trace</span><span style=\"color:#555\"> &rsaquo; </span><span style=\"color:#6e6e6e\">4 Answer</span></span><a href=\"/d/gpu-walk-2?orgId=1&kiosk\" style=\"font-size:18px;line-height:1.2;color:#ff9830;font-weight:700;text-decoration:none;border:2px solid #ff9830;border-radius:6px;padding:0 12px\">Next: 2 Log &rsaquo;</a></div><div style=\"font-size:40px;line-height:1.2;font-weight:700;color:#ffffff;margin-top:0;padding-bottom:6px\">What does the GPU say?</div>"
+      }
+    },
+    {
+      "id": 101,
+      "type": "text",
+      "title": "",
+      "transparent": true,
+      "gridPos": {
+        "x": 0,
+        "y": 3,
+        "w": 9,
+        "h": 20
+      },
+      "options": {
+        "mode": "html",
+        "content": "<div style=\"font-size:16px;color:#9a9a9a;margin-bottom:6px\">manifests/10-gpu-metrics/dcgm-exporter.yaml</div><pre style=\"font-size:23px;line-height:1.5;background:#111217;border:1px solid #2c3235;padding:14px 16px;border-radius:8px;white-space:pre-wrap;margin:0\"><span style=\"display:block\">args:</span><span style=\"display:block;background:#4d3d00;color:#ffd666;font-weight:700;margin:0 -16px;padding:0 16px\">  - --kubernetes=true</span><span style=\"display:block\">  - --kubernetes-gpu-id-type=uid</span><span style=\"display:block\">env:</span><span style=\"display:block\">  ENABLE_POD_LABELS: \"false\"</span></pre><div style=\"font-size:21px;color:#d8d9da;margin-top:14px;line-height:1.4\">dcgm-exporter asks the kubelet which pod owns each GPU, so every GPU metric carries the <b>pod name</b>.</div>"
+      }
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "GPU memory in use, per pod  \u00b7  DCGM_FI_DEV_FB_USED",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 9,
+        "y": 3,
+        "w": 15,
+        "h": 20
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "decmbytes",
+          "custom": {
+            "lineWidth": 3,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "min": 0,
+          "max": 24576,
+          "noValue": "No load yet"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*constrained.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*overprov.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A",
+          "expr": "DCGM_FI_DEV_FB_USED{exported_pod=~\"$pod\"}",
+          "legendFormat": "{{exported_pod}}"
+        }
+      ]
+    },
+    {
+      "id": 102,
+      "type": "text",
+      "title": "",
+      "transparent": true,
+      "gridPos": {
+        "x": 0,
+        "y": 23,
+        "w": 24,
+        "h": 4
+      },
+      "options": {
+        "mode": "html",
+        "content": "<div style=\"font-size:34px;font-weight:600;color:#ffffff;text-align:center;padding-top:6px\">The chart we page on: <span style=\"color:#f2495c;font-weight:700\">red 2 GB</span>, <span style=\"color:#5794f2;font-weight:700\">blue 20.6 GB</span>. Flat under load. It cannot tell you which one is in trouble.</div>"
+      }
+    }
+  ]
+}

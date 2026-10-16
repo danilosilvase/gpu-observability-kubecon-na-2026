@@ -51,6 +51,17 @@ resource "kubernetes_config_map_v1" "dashboard" {
   depends_on = [helm_release.kps]
 }
 
+# The 4-screen demo walkthrough (live and recorded use the same dashboards), from build_walkthrough.py
+resource "kubernetes_config_map_v1" "walkthrough" {
+  metadata {
+    name      = "gpu-walkthrough-dashboards"
+    namespace = "observability"
+    labels    = { grafana_dashboard = "1" }
+  }
+  data       = { for f in fileset("${local.m}/60-grafana/walk", "*.json") : f => file("${local.m}/60-grafana/walk/${f}") }
+  depends_on = [helm_release.kps]
+}
+
 ############################################
 # Workload manifests via kubectl provider
 ############################################

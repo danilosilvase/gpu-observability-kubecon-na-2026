@@ -202,8 +202,9 @@ def dashboard(uid, title, panels, link_uid, link_title):
         "panels": panels,
     }
 
-json.dump(dashboard("gpu-inference-obs", "GPU inference: which pod is in trouble?", stage_panels,
-                    "gpu-inference-deep", "Deep dive (all panels)"), open(sys.argv[1], "w"), indent=2)
-json.dump(dashboard("gpu-inference-deep", "GPU inference: deep dive (Q&A)", deep_panels,
-                    "gpu-inference-obs", "Stage dashboard"), open(sys.argv[2], "w"), indent=2)
-print("stage panels:", len(stage_panels), " deep panels:", len(deep_panels))
+if __name__ == "__main__":
+    json.dump(dashboard("gpu-inference-obs", "GPU inference: which pod is in trouble?", stage_panels,
+                        "gpu-inference-deep", "Deep dive (all panels)"), open(sys.argv[1], "w"), indent=2)
+    json.dump(dashboard("gpu-inference-deep", "GPU inference: deep dive (Q&A)", deep_panels,
+                        "gpu-inference-obs", "Stage dashboard"), open(sys.argv[2], "w"), indent=2)
+    print("stage panels:", len(stage_panels), " deep panels:", len(deep_panels))

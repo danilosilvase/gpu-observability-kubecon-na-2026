@@ -1,0 +1,437 @@
+{
+  "uid": "gpu-walk-2",
+  "title": "2 \u00b7 What does the server say?",
+  "links": [
+    {
+      "type": "link",
+      "title": "Next: 3 Trace",
+      "url": "/d/gpu-walk-3",
+      "icon": "dashboard"
+    }
+  ],
+  "schemaVersion": 39,
+  "refresh": "5s",
+  "time": {
+    "from": "now-10m",
+    "to": "now"
+  },
+  "tags": [
+    "gpu",
+    "inference",
+    "vllm",
+    "dcgm",
+    "fluent-bit",
+    "otel"
+  ],
+  "graphTooltip": 1,
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      },
+      {
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "iconColor": "orange",
+        "name": "load hits",
+        "target": {
+          "type": "tags",
+          "tags": [
+            "load"
+          ],
+          "matchAny": true,
+          "limit": 20
+        }
+      }
+    ]
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "pod",
+        "label": "pod",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "query_result(kube_pod_status_phase{namespace=\"inference\", phase=\"Running\", pod=~\"vllm-(constrained|overprov).*\"} == 1)",
+          "refId": "pod"
+        },
+        "regex": "/pod=\"([^\"]+)\"/",
+        "includeAll": true,
+        "multi": true,
+        "refresh": 2,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 100,
+      "type": "text",
+      "title": "",
+      "transparent": true,
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 3
+      },
+      "options": {
+        "mode": "html",
+        "content": "<div style=\"display:flex;justify-content:space-between;align-items:center;font-size:20px;line-height:1.2;letter-spacing:0.5px\"><span><span style=\"color:#a0a0a0\">1 GPU</span><span style=\"color:#555\"> &rsaquo; </span><span style=\"color:#ffffff;font-weight:700;border-bottom:4px solid #ff9830;padding-bottom:2px\">2 Log</span><span style=\"color:#555\"> &rsaquo; </span><span style=\"color:#6e6e6e\">3 Trace</span><span style=\"color:#555\"> &rsaquo; </span><span style=\"color:#6e6e6e\">4 Answer</span></span><a href=\"/d/gpu-walk-3?orgId=1&kiosk\" style=\"font-size:18px;line-height:1.2;color:#ff9830;font-weight:700;text-decoration:none;border:2px solid #ff9830;border-radius:6px;padding:0 12px\">Next: 3 Trace &rsaquo;</a></div><div style=\"font-size:40px;line-height:1.2;font-weight:700;color:#ffffff;margin-top:0;padding-bottom:6px\">What does the server say?</div>"
+      }
+    },
+    {
+      "id": 101,
+      "type": "text",
+      "title": "",
+      "transparent": true,
+      "gridPos": {
+        "x": 0,
+        "y": 3,
+        "w": 9,
+        "h": 20
+      },
+      "options": {
+        "mode": "html",
+        "content": "<div style=\"font-size:16px;color:#9a9a9a;margin-bottom:6px\">manifests/30-logs/fluent-bit.yaml  \u00b7  example line vLLM logs every 10 s:</div><pre style=\"font-size:23px;line-height:1.5;background:#111217;border:1px solid #2c3235;padding:14px 16px;border-radius:8px;white-space:pre-wrap;margin:0\"><span style=\"display:block\">Avg generation throughput: 9528 tokens/s,</span><span style=\"display:block\">Running: 49 reqs, Waiting: 143 reqs,</span><span style=\"display:block;background:#4d3d00;color:#ffd666;font-weight:700;margin:0 -16px;padding:0 16px\">GPU KV cache usage: 100.0%</span><span style=\"display:block\"></span><span style=\"display:block;background:#4d3d00;color:#ffd666;font-weight:700;margin:0 -16px;padding:0 16px\">kv = string.match(line, \"KV cache usage:%s*([%d%.]+)%%\")</span></pre><div style=\"font-size:21px;color:#d8d9da;margin-top:14px;line-height:1.4\">Fluent Bit already ships this log. 15 lines of Lua turn it into a metric with the <b>pod name</b>.</div>"
+      }
+    },
+    {
+      "id": 20,
+      "type": "timeseries",
+      "title": "KV cache in use, per pod  \u00b7  from the vLLM log line",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 9,
+        "y": 3,
+        "w": 15,
+        "h": 13
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {
+            "lineWidth": 3,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true,
+            "thresholdsStyle": {
+              "mode": "line+area"
+            }
+          },
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "transparent",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          },
+          "noValue": "No load yet"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*constrained.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*overprov.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A",
+          "expr": "vllm_log_kv_cache_usage_pct{pod_name=~\"$pod\"} and on(pod_name) label_replace(kube_pod_status_phase{namespace=\"inference\", phase=\"Running\"} == 1, \"pod_name\", \"$1\", \"pod\", \"(.*)\")",
+          "legendFormat": "{{pod_name}}"
+        }
+      ]
+    },
+    {
+      "id": 21,
+      "type": "stat",
+      "title": "Tokens/s  \u00b7  same log line",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 9,
+        "y": 16,
+        "w": 8,
+        "h": 7
+      },
+      "interval": "5s",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A",
+          "expr": "vllm_log_gen_tokens_per_s{pod_name=~\"$pod\", pod_name=~\"vllm-constrained.*\"} and on(pod_name) label_replace(kube_pod_status_phase{namespace=\"inference\", phase=\"Running\"} == 1, \"pod_name\", \"$1\", \"pod\", \"(.*)\")",
+          "legendFormat": "{{pod_name}}"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "B",
+          "expr": "vllm_log_gen_tokens_per_s{pod_name=~\"$pod\", pod_name=~\"vllm-overprov.*\"} and on(pod_name) label_replace(kube_pod_status_phase{namespace=\"inference\", phase=\"Running\"} == 1, \"pod_name\", \"$1\", \"pod\", \"(.*)\")",
+          "legendFormat": "{{pod_name}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "noValue": "No traffic",
+          "min": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "decimals": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*constrained.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*overprov.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "value_and_name",
+        "justifyMode": "center",
+        "orientation": "horizontal",
+        "wideLayout": true,
+        "text": {
+          "titleSize": 18,
+          "valueSize": 64
+        },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 22,
+      "type": "stat",
+      "title": "Cross-check: KV cache peak from vLLM /metrics",
+      "description": "Same number, read from vLLM's own /metrics endpoint instead of the log.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 17,
+        "y": 16,
+        "w": 7,
+        "h": 7
+      },
+      "interval": "5s",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A",
+          "expr": "max by (pod) (max_over_time(vllm:kv_cache_usage_perc{pod=~\"$pod\", pod=~\"vllm-constrained.*\"}[1m])) * 100",
+          "legendFormat": "{{pod}}"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "B",
+          "expr": "max by (pod) (max_over_time(vllm:kv_cache_usage_perc{pod=~\"$pod\", pod=~\"vllm-overprov.*\"}[1m])) * 100",
+          "legendFormat": "{{pod}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "noValue": "No traffic",
+          "min": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "max": 100,
+          "decimals": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*constrained.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*overprov.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "value_and_name",
+        "justifyMode": "center",
+        "orientation": "horizontal",
+        "wideLayout": true,
+        "text": {
+          "titleSize": 18,
+          "valueSize": 64
+        },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 102,
+      "type": "text",
+      "title": "",
+      "transparent": true,
+      "gridPos": {
+        "x": 0,
+        "y": 23,
+        "w": 24,
+        "h": 4
+      },
+      "options": {
+        "mode": "html",
+        "content": "<div style=\"font-size:34px;font-weight:600;color:#ffffff;text-align:center;padding-top:6px\"><span style=\"color:#f2495c;font-weight:700\">Red is full</span>: new requests wait for room. <span style=\"color:#5794f2;font-weight:700\">Blue</span> uses about a third of its own.</div>"
+      }
+    }
+  ]
+}

@@ -2,7 +2,7 @@
 
 **TL;DR:** pod name on a GPU metric = one new set of series per pod restart. Keep the pod name (it is the join key), drop everything else that churns.
 
-## Measured on the rig (Oct 13, 2 A10G GPUs, 7 counters)
+## Measured in this lab (2 A10G GPUs, 7 counters)
 
 | | GPU series |
 |--|--|
@@ -26,4 +26,4 @@ One churny label (a version, a run ID, a commit hash) multiplies the whole thing
 | No arbitrary pod labels | `DCGM_EXPORTER_KUBERNETES_ENABLE_POD_LABELS=false` |
 | Need a few labels? Allow-list them | `DCGM_EXPORTER_KUBERNETES_POD_LABEL_ALLOWLIST_REGEX="app,model"` (needs pod labels on, plus RBAC to read pods) |
 | Few counters | 7 in `counters.csv`, not the default ~40 |
-| Short retention for per-pod data | `retention: 6h` on this rig |
+| Short retention for per-pod data | `retention: 6h` in this lab |

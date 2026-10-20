@@ -2,7 +2,7 @@
 
 Every screen has the same layout so the room learns it once:
   progress strip + the question | config (<= 6 lines, 1 highlighted) | one chart, red vs blue | one sentence.
-Same dashboards for the live demo and the recording (demo/record/record.mjs walks them in order).
+The four screens of the guided walkthrough (DEMO.md).
 
 Usage: python3 build_walkthrough.py walk/      -> walk/gpu-walk-{1..4}.json
 """

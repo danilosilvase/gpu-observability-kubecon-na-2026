@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
-# End-to-end validation of the GPU observability stack.
+# End-to-end validation of the GPU observability stack (15 checks). Run after terraform apply.
+# Overrides: REGION, CLUSTER (defaults match terraform/variables.tf). Uses your current AWS credentials.
 set -uo pipefail
-export AWS_PROFILE="${AWS_PROFILE:-default}"
-REGION=eu-central-1
-CLUSTER=gpu-obs-demo
+REGION="${REGION:-eu-central-1}"
+CLUSTER="${CLUSTER:-gpu-obs-demo}"
 PASS=0; FAIL=0
 chk(){ if eval "$2"; then echo "PASS: $1"; PASS=$((PASS+1)); else echo "FAIL: $1"; FAIL=$((FAIL+1)); fi; }
 
-aws eks update-kubeconfig --name $CLUSTER --region $REGION >/dev/null 2>&1
+aws eks update-kubeconfig --name "$CLUSTER" --region "$REGION" >/dev/null \
+  || { echo "Cannot reach cluster $CLUSTER in $REGION. Check your AWS credentials (AWS_PROFILE), REGION and CLUSTER."; exit 1; }
+PROBE="probe-$$"
 
 echo "=== 1. GPU node provisioned by Auto Mode ==="
 kubectl get nodes -L workload-type,node.kubernetes.io/instance-type
@@ -21,7 +23,7 @@ chk "vllm-overprov running"     "kubectl -n inference get pods -l profile=overpr
 
 echo "=== 3. SIGNAL A: DCGM GPU metrics with pod mapping ==="
 kubectl -n observability get pods -l app=dcgm-exporter
-DCGM=$(kubectl -n observability run dcgmprobe --image=curlimages/curl --restart=Never --rm -i --quiet -- curl -s http://dcgm-exporter.observability:9400/metrics 2>/dev/null)
+DCGM=$(kubectl -n observability run "$PROBE-dcgm" --image=curlimages/curl --restart=Never --rm -i --quiet -- curl -s http://dcgm-exporter.observability:9400/metrics 2>/dev/null)
 chk "DCGM_FI_DEV_FB_USED exposed"   "echo \"$DCGM\" | grep -q DCGM_FI_DEV_FB_USED"
 chk "DCGM metric carries pod label" "echo \"$DCGM\" | grep DCGM_FI_DEV_FB_USED | grep -q 'pod='"
 
@@ -34,7 +36,7 @@ echo "=== 5. SIGNAL C: OTel traces reached Jaeger ==="
 kubectl -n observability get pods -l 'app in (jaeger,otel-collector)' 2>/dev/null
 chk "otel-collector running" "kubectl -n observability get pods -l app=otel-collector --no-headers | grep -q Running"
 chk "jaeger running"         "kubectl -n observability get pods -l app=jaeger --no-headers | grep -q Running"
-SVCS=$(kubectl -n observability run jprobe --image=curlimages/curl --restart=Never --rm -i --quiet -- curl -s http://jaeger-ui.observability:16686/api/services 2>/dev/null)
+SVCS=$(kubectl -n observability run "$PROBE-jaeger" --image=curlimages/curl --restart=Never --rm -i --quiet -- curl -s http://jaeger-ui.observability:16686/api/services 2>/dev/null)
 chk "jaeger has vllm trace services" "echo \"$SVCS\" | grep -q vllm-constrained"
 chk "jaeger has client hop (needs loadgen)" "echo \"$SVCS\" | grep -q chat-client"
 
@@ -50,3 +52,4 @@ chk "jaeger datasource configmap present" "kubectl -n observability get cm jaege
 
 echo
 echo "==================== RESULT: $PASS passed / $FAIL failed ===================="
+[ "$FAIL" -eq 0 ]

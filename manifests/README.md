@@ -9,17 +9,21 @@
 | 3 | Traces, 2 hops | OTel Collector `k8sattributes` -> Jaeger | `40-traces/otel-collector.yaml` | `k8s.pod.name` |
 | - | Trace -> GPU links | Grafana Jaeger datasource | `60-grafana/jaeger-datasource.yaml` | maps `k8s.pod.name` |
 | - | Dashboard (stage) | Grafana | `60-grafana/gpu-inference-dashboard.json` | `$pod` |
-| - | Dashboard (deep dive, Q&A) | Grafana | `60-grafana/gpu-inference-deep-dive.json` | `$pod` |
+| - | Dashboard (deep dive) | Grafana | `60-grafana/gpu-inference-deep-dive.json` | `$pod` |
+| - | Walkthrough, 4 screens ([DEMO.md](../DEMO.md)) | Grafana | `60-grafana/walk/gpu-walk-1..4.json` | `$pod` |
 
 Workload: `20-vllm/vllm.yaml` (two vLLM pods, 8% vs 90% GPU memory, same traffic) and
 `20-vllm/loadgen-job.yaml` (load + client span, hop 1 of each trace).
 
 ## Deploy
 
+Terraform (`../terraform`) builds the cluster and applies these files for you. To use a cluster you already have instead:
+
 ```bash
-./deploy.sh          # onto an existing cluster
-# or: ../terraform   # cluster + everything, from these same files
+./deploy.sh
 ```
+
+It needs NVIDIA GPU nodes (EKS Auto Mode, or the NVIDIA device plugin), kube-prometheus-stack installed in the `observability` namespace with the Grafana dashboard and datasource sidecars enabled, and Prometheus selecting all ServiceMonitors. `00-cluster/nodepool-gpu.yaml` is an EKS Auto Mode NodePool; skip it elsewhere and make sure GPU nodes carry the `workload-type=gpu-inference` label and the `nvidia.com/gpu` taint. Use Terraform or `deploy.sh`, not both.
 
 ## Where to look in the code
 

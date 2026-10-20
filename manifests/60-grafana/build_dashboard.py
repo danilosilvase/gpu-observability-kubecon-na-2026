@@ -1,7 +1,7 @@
 """Builds the two Grafana dashboards from one place.
 
   stage  (uid gpu-inference-obs):  what the audience sees. One question, 2 pods x 3 big numbers, one trace table.
-  deep   (uid gpu-inference-deep): every panel, for Q&A.
+  deep   (uid gpu-inference-deep): every panel.
 
 Usage: python3 build_dashboard.py gpu-inference-dashboard.json gpu-inference-deep-dive.json
 """
@@ -106,7 +106,7 @@ def big(pid, title, desc, expr, legend, x, y, w, h, unit, mx=None, novalue="No t
 TTFT = ('(sum by (pod) (rate(vllm:time_to_first_token_seconds_sum{pod=~"$pod"}[2m]))'
         ' / sum by (pod) (rate(vllm:time_to_first_token_seconds_count{pod=~"$pod"}[2m])) >= 0)')
 
-# ---------------- deep dive: every panel, for Q&A ----------------
+# ---------------- deep dive: every panel ----------------
 deep_panels = []
 # Row 0: the verdict, readable from the back of the room
 deep_panels.append(verdict(1, "Verdict per pod (peak KV cache while it has traffic, parsed from the serving log)", 0))
@@ -205,6 +205,6 @@ def dashboard(uid, title, panels, link_uid, link_title):
 if __name__ == "__main__":
     json.dump(dashboard("gpu-inference-obs", "GPU inference: which pod is in trouble?", stage_panels,
                         "gpu-inference-deep", "Deep dive (all panels)"), open(sys.argv[1], "w"), indent=2)
-    json.dump(dashboard("gpu-inference-deep", "GPU inference: deep dive (Q&A)", deep_panels,
+    json.dump(dashboard("gpu-inference-deep", "GPU inference: deep dive", deep_panels,
                         "gpu-inference-obs", "Stage dashboard"), open(sys.argv[2], "w"), indent=2)
     print("stage panels:", len(stage_panels), " deep panels:", len(deep_panels))

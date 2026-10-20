@@ -1,0 +1,12 @@
+# Copy to terraform.tfvars (git-ignored) and edit.
+
+# Your public IP, so only you can reach the EKS API:
+#   curl -s https://checkip.amazonaws.com
+admin_cidrs = ["<your-ip>/32"]
+
+# Optional. Omit to use the default AWS credential chain.
+# aws_profile = "my-admin-profile"
+
+# Optional. Defaults shown.
+# region                 = "eu-central-1"
+# grafana_admin_password = "gpu-obs-demo"

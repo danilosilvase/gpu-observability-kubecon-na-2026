@@ -20,4 +20,4 @@ kubectl -n observability create configmap gpu-walkthrough-dashboards \
 
 kubectl -n inference rollout status deploy/vllm-constrained --timeout=900s
 kubectl -n inference rollout status deploy/vllm-overprov    --timeout=900s
-echo "Ready. Start the demo: ../demo/start.sh"
+echo "Ready. From the repository root: demo/start.sh"

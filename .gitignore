@@ -1,13 +1,12 @@
-
-# --- project specific ---
-# Terraform local state, providers, plans, lock overrides
+# Terraform state, providers, plans, local variables
 terraform/.terraform/
 terraform/*.tfstate
 terraform/*.tfstate.*
 terraform/*.tfplan
 terraform/.terraform.tfstate.lock.info
+terraform/terraform.tfvars
 
-# Local kube/aws credentials and rendered configs
+# Credentials and rendered configs
 kubeconfig*
 *.kubeconfig
 .aws/
@@ -16,24 +15,10 @@ kubeconfig*
 .env
 .env.*
 
-# Internal working notes (not part of the public demo)
-research-brief.md
-research-2026-10-06/
-
-# Local secrets/identity: AWS profile name and presenter IP allow-list
-terraform/terraform.tfvars
-
-# Editor / OS noise
+# Editor, OS and Python noise
 .DS_Store
 .idea/
 .vscode/
 *.swp
-
-# Rendered demo videos (large binaries, shared out of band)
-deck/video/*.mp4
-demo/record/out*/
-demo/record/*.log
-demo/record/node_modules/
 __pycache__/
 *.pyc
-demo/record/.sync/

@@ -2,12 +2,12 @@
 #   192 long requests at a time to each pod, unique prefix (defeats prefix caching), ignore_eos.
 #   vllm-constrained (0.08): KV cache hits 100%, ~140 requests wait, time to first token ~6 s.
 #   vllm-overprov    (0.90): KV cache peaks ~30%, nothing waits, time to first token ~0.1 s.
-#   DCGM GPU memory stays flat on both. Measured on the rig Oct 16 2026.
+#   DCGM GPU memory stays flat on both. Measured on NVIDIA A10G (g5.xlarge).
 # Every request is a client span ("chat request") whose traceparent header vLLM continues,
 # so each trace has two hops: client pod -> vLLM pod, both stamped with k8s.pod.name by the Collector.
 # On start it drops a "load hits" annotation on the Grafana dashboard.
 #
-#   kubectl -n inference delete job vllm-loadgen --ignore-not-found && kubectl apply -f manifests/20-vllm/loadgen-job.yaml
+#   Start it with demo/load.sh (restarts the Job and passes the Grafana password).
 apiVersion: batch/v1
 kind: Job
 metadata: { name: vllm-loadgen, namespace: inference }
@@ -30,7 +30,7 @@ spec:
             - { name: OTEL_SERVICE_NAME,           value: "chat-client" }
             - { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "http://otel-collector.observability:4318" }
             - { name: GRAFANA_URL,  value: "http://kube-prometheus-stack-grafana.observability" }
-            - { name: GRAFANA_AUTH, value: "admin:gpu-obs-demo" }   # demo default, see terraform/platform.tf
+            - { name: GRAFANA_AUTH, value: "admin:gpu-obs-demo" }   # demo/load.sh replaces this with GRAFANA_PASSWORD
           command: ["sh", "-c"]
           args:
             - |

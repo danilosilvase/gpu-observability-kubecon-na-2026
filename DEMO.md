@@ -7,6 +7,8 @@ Four Grafana dashboards, `gpu-walk-1` to `gpu-walk-4`, ask one question each. Ev
 
 Same model (`facebook/opt-125m`), same GPU type (one NVIDIA A10G or L4 per pod), same traffic.
 
+A recorded run of all four screens is in the [demo walkthrough video](https://github.com/danilosilvase/gpu-observability-kubecon-na-2026/releases/download/kubecon-na-2026/demo-walkthrough.mp4) (5:45, no audio).
+
 ## Before you start
 
 1. Deploy the lab ([README](README.md#deploy)).

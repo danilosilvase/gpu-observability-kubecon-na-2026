@@ -4,6 +4,8 @@ Companion lab for the KubeCon + CloudNativeCon North America 2026 Observability 
 
 Two vLLM pods serve the same model on the same GPU type with the same traffic. One reserves 8% of GPU memory, the other 90%. The GPU memory chart shows two flat lines and cannot tell you which one is in trouble. The inference server's own signal (KV cache usage, queue time) can, and this lab shows how to collect it per pod and join it with GPU metrics and traces.
 
+![The KV cache runs out first](https://github.com/danilosilvase/gpu-observability-kubecon-na-2026/releases/download/kubecon-na-2026/kv-cache-runs-out-first.gif)
+
 **The pod is the join key.** Stamp the same `pod` and `namespace` on three signals and they become one Grafana query:
 
 | Signal | Collected by | Pod label |
@@ -80,6 +82,10 @@ demo/load.sh          # 20 minutes of identical traffic to both pods
 ```
 
 Grafana login: `admin` / `gpu-obs-demo`. If you set `grafana_admin_password`, also `export GRAFANA_PASSWORD=<same>` for the demo scripts. Follow the four screens in [DEMO.md](DEMO.md). The constrained pod's KV cache fills about 90 seconds after the load starts.
+
+A recorded run of the four screens (5:45, no audio). Click the image to play it:
+
+[![Demo walkthrough: the four Grafana screens](https://github.com/danilosilvase/gpu-observability-kubecon-na-2026/releases/download/kubecon-na-2026/demo-walkthrough.png)](https://github.com/danilosilvase/gpu-observability-kubecon-na-2026/releases/download/kubecon-na-2026/demo-walkthrough.mp4)
 
 Other dashboards, under Dashboards in Grafana:
 
